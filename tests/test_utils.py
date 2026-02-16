@@ -37,3 +37,44 @@ def test_slugify():
     from src.utils import slugify
     assert slugify("Re: Invoice #1234!") == "re-invoice-1234"
     assert slugify("  Hello World  ") == "hello-world"
+
+
+def test_parse_frontmatter_extracts_yaml(tmp_path):
+    """parse_frontmatter should extract YAML between --- delimiters."""
+    from src.utils import parse_frontmatter
+    f = tmp_path / "test.md"
+    f.write_text("---\naction: reply\nto: bob@test.com\nsubject: \"Re: Hello\"\n---\n\n# Plan\nSome content.")
+    result = parse_frontmatter(f)
+    assert result["action"] == "reply"
+    assert result["to"] == "bob@test.com"
+    assert result["subject"] == "Re: Hello"
+
+
+def test_parse_frontmatter_returns_empty_on_no_frontmatter(tmp_path):
+    """parse_frontmatter should return empty dict when no YAML block exists."""
+    from src.utils import parse_frontmatter
+    f = tmp_path / "test.md"
+    f.write_text("# Just a heading\nNo frontmatter here.")
+    result = parse_frontmatter(f)
+    assert result == {}
+
+
+def test_extract_reply_block(tmp_path):
+    """extract_reply_block should return text between BEGIN/END REPLY markers."""
+    from src.utils import extract_reply_block
+    f = tmp_path / "plan.md"
+    f.write_text(
+        "---\naction: reply\n---\n\n# Plan\n\n## Reply Draft\n"
+        "---BEGIN REPLY---\nHi Bob,\n\nThanks for your email.\n\nBest regards\n---END REPLY---\n"
+    )
+    result = extract_reply_block(f)
+    assert result == "Hi Bob,\n\nThanks for your email.\n\nBest regards"
+
+
+def test_extract_reply_block_returns_none_when_missing(tmp_path):
+    """extract_reply_block should return None when no reply block exists."""
+    from src.utils import extract_reply_block
+    f = tmp_path / "plan.md"
+    f.write_text("---\naction: reply\n---\n\n# Plan\nNo reply block here.")
+    result = extract_reply_block(f)
+    assert result is None
