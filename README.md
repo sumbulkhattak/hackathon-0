@@ -1,6 +1,6 @@
-# Digital FTE — Silver Tier
+# Digital FTE — Gold Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with email replies.
+> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with self-improving plans.
 
 An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault.
 
@@ -9,19 +9,25 @@ An autonomous AI agent that monitors your Gmail, drafts replies using Claude, an
 ```
 Gmail ──► Gmail Watcher ──► vault/Needs_Action/
                                     │
-                            Orchestrator + Claude
+                            Orchestrator + Claude ◄── vault/Agent_Memory.md
                                     │
                             vault/Pending_Approval/
                                     │
                               Human reviews
-                                    │
-                            vault/Approved/ ──► Gmail Reply ──► vault/Done/
+                                 │      │
+                         Approved/   Rejected/
+                             │          │
+                       Gmail Reply   Claude reviews
+                             │          │
+                         Done/    learning → Agent_Memory.md
+                                       │
+                                     Done/
 ```
 
 **Four layers:**
 1. **Perception** — Gmail Watcher polls for new emails
 2. **Reasoning** — Claude Code analyzes emails and generates plans
-3. **Action** — Approved plans are executed (Silver: email replies sent via Gmail API)
+3. **Action** — Approved plans are executed; rejected plans generate learnings
 4. **Memory** — Obsidian vault stores everything as markdown
 
 ## Prerequisites
@@ -74,6 +80,7 @@ The agent will:
 4. Wait for you to review — edit the reply if needed, then move to `vault/Approved/`
 5. **Send email replies** for approved plans that include a reply draft
 6. Archive to `vault/Done/`
+7. **Learn from rejections** — analyze rejected plans and store learnings in Agent Memory
 
 Open the `vault/` folder in Obsidian to see your dashboard.
 
@@ -98,8 +105,10 @@ vault/
 ├── Plans/              # Claude-generated plans
 ├── Pending_Approval/   # Awaiting human review
 ├── Approved/           # Human-approved actions
+├── Rejected/           # Human-rejected plans for review
 ├── Done/               # Completed items
 ├── Logs/               # Daily JSON activity logs
+├── Agent_Memory.md     # Learnings from rejected plans
 └── Company_Handbook.md # Rules for Claude's behavior
 ```
 
@@ -113,7 +122,7 @@ vault/
 
 ## Tier Declaration
 
-**Silver Tier** — Gmail watcher with reply sending, Claude-drafted responses, daily send limits, Obsidian vault with approval pipeline.
+**Gold Tier** — Gmail watcher with reply sending, file watcher, self-review loops that learn from rejected plans, Obsidian vault with approval pipeline.
 
 ## License
 
