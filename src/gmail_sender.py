@@ -49,7 +49,7 @@ def check_send_limit(logs_dir: Path, limit: int) -> bool:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     count_file = logs_dir / f".send_count_{today}.json"
     if not count_file.exists():
-        return True
+        return 0 < limit
     data = json.loads(count_file.read_text())
     return data.get("count", 0) < limit
 
