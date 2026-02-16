@@ -8,6 +8,7 @@ from src.config import load_config
 from src.utils import setup_logging
 from src.auth import get_gmail_service
 from src.watchers.gmail_watcher import GmailWatcher
+from src.watchers.file_watcher import FileWatcher
 from src.orchestrator import Orchestrator
 from setup_vault import setup_vault
 
@@ -44,6 +45,15 @@ def main():
         gmail_service=gmail_service,
         daily_send_limit=cfg.daily_send_limit,
     )
+    file_watcher = None
+    if cfg.file_watch_enabled:
+        file_watcher = FileWatcher(
+            vault_path=cfg.vault_path,
+            dry_run=cfg.file_watch_dry_run,
+        )
+        mode = "dry-run" if cfg.file_watch_dry_run else "live"
+        logger.info(f"File watcher enabled ({mode})")
+
     logger.info(
         f"Digital FTE started — watching Gmail every {cfg.gmail_check_interval}s "
         f"(filter: {cfg.gmail_filter}, send_limit: {cfg.daily_send_limit}/day)"
@@ -54,6 +64,10 @@ def main():
             count = watcher.run_once()
             if count > 0:
                 logger.info(f"Gmail: {count} new email(s) detected")
+            if file_watcher:
+                file_count = file_watcher.run_once()
+                if file_count > 0:
+                    logger.info(f"Files: {file_count} new file(s) detected")
             for action_file in orchestrator.get_pending_actions():
                 orchestrator.process_action(action_file)
             for approved_file in orchestrator.get_approved_actions():
