@@ -80,3 +80,23 @@ def extract_reply_block(file_path: Path) -> str | None:
     if start_idx == -1 or end_idx == -1:
         return None
     return text[start_idx + len(begin):end_idx].strip()
+
+
+def extract_confidence(response: str) -> float:
+    """Extract confidence score from Claude's ## Confidence section.
+
+    Returns 0.0 if the section is missing or the value is not a valid float.
+    """
+    marker = "## Confidence"
+    idx = response.find(marker)
+    if idx == -1:
+        return 0.0
+    after = response[idx + len(marker):]
+    for line in after.split("\n"):
+        line = line.strip()
+        if line:
+            try:
+                return float(line)
+            except ValueError:
+                return 0.0
+    return 0.0

@@ -78,3 +78,24 @@ def test_extract_reply_block_returns_none_when_missing(tmp_path):
     f.write_text("---\naction: reply\n---\n\n# Plan\nNo reply block here.")
     result = extract_reply_block(f)
     assert result is None
+
+
+def test_extract_confidence_parses_valid_score():
+    """extract_confidence should parse a float from ## Confidence section."""
+    from src.utils import extract_confidence
+    response = "## Analysis\nSome analysis.\n\n## Confidence\n0.85\n\n## Recommended Actions\n1. Reply"
+    assert extract_confidence(response) == 0.85
+
+
+def test_extract_confidence_returns_zero_when_missing():
+    """extract_confidence should return 0.0 when ## Confidence section is absent."""
+    from src.utils import extract_confidence
+    response = "## Analysis\nSome analysis.\n\n## Recommended Actions\n1. Reply"
+    assert extract_confidence(response) == 0.0
+
+
+def test_extract_confidence_returns_zero_for_invalid_value():
+    """extract_confidence should return 0.0 when confidence value is not a number."""
+    from src.utils import extract_confidence
+    response = "## Analysis\nSome analysis.\n\n## Confidence\nhigh\n\n## Recommended Actions\n1. Reply"
+    assert extract_confidence(response) == 0.0
