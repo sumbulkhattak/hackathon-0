@@ -6,7 +6,7 @@ import pytest
 
 @pytest.fixture
 def vault(tmp_path):
-    for folder in ["Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs"]:
+    for folder in ["Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs", "Rejected"]:
         (tmp_path / folder).mkdir()
     (tmp_path / "Company_Handbook.md").write_text("# Handbook\nApprove all emails.")
     return tmp_path
@@ -132,3 +132,14 @@ def test_orchestrator_handles_missing_reply_block(vault):
     orch.execute_approved(approved_file)
     mock_gmail.users().messages().send.assert_not_called()
     assert (vault / "Done" / "plan-bad-reply.md").exists()
+
+
+def test_orchestrator_detects_rejected_files(vault):
+    """get_rejected_actions should find files in Rejected/ folder."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    rejected_file = vault / "Rejected" / "plan-bad.md"
+    rejected_file.write_text("---\nstatus: pending_approval\n---\n\n# Plan\nBad plan.")
+    rejected = orch.get_rejected_actions()
+    assert len(rejected) == 1
+    assert rejected[0].name == "plan-bad.md"

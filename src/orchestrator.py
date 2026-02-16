@@ -23,14 +23,19 @@ class Orchestrator:
         self.pending_approval = vault_path / "Pending_Approval"
         self.approved = vault_path / "Approved"
         self.done = vault_path / "Done"
+        self.rejected = vault_path / "Rejected"
         self.logs = vault_path / "Logs"
         self.handbook_path = vault_path / "Company_Handbook.md"
+        self.memory_path = vault_path / "Agent_Memory.md"
 
     def get_pending_actions(self) -> list[Path]:
         return sorted(self.needs_action.glob("*.md"))
 
     def get_approved_actions(self) -> list[Path]:
         return sorted(self.approved.glob("*.md"))
+
+    def get_rejected_actions(self) -> list[Path]:
+        return sorted(self.rejected.glob("*.md"))
 
     def process_action(self, action_file: Path) -> Path:
         logger.info(f"Processing: {action_file.name}")
