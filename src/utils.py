@@ -4,6 +4,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 
 def setup_logging(level: str = "INFO") -> logging.Logger:
     """Configure and return the application logger."""
@@ -52,3 +54,29 @@ def slugify(text: str) -> str:
     text = re.sub(r"[\s_]+", "-", text)
     text = re.sub(r"-+", "-", text)
     return text.strip("-")
+
+
+def parse_frontmatter(file_path: Path) -> dict:
+    """Extract YAML frontmatter from a markdown file."""
+    text = file_path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return {}
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    try:
+        return yaml.safe_load(parts[1]) or {}
+    except yaml.YAMLError:
+        return {}
+
+
+def extract_reply_block(file_path: Path) -> str | None:
+    """Extract reply text between ---BEGIN REPLY--- and ---END REPLY--- markers."""
+    text = file_path.read_text(encoding="utf-8")
+    begin = "---BEGIN REPLY---"
+    end = "---END REPLY---"
+    start_idx = text.find(begin)
+    end_idx = text.find(end)
+    if start_idx == -1 or end_idx == -1:
+        return None
+    return text[start_idx + len(begin):end_idx].strip()
