@@ -72,6 +72,8 @@ def main():
                 orchestrator.process_action(action_file)
             for approved_file in orchestrator.get_approved_actions():
                 orchestrator.execute_approved(approved_file)
+            for rejected_file in orchestrator.get_rejected_actions():
+                orchestrator.review_rejected(rejected_file)
             time.sleep(cfg.gmail_check_interval)
     except KeyboardInterrupt:
         logger.info("Digital FTE shutting down. Goodbye!")
