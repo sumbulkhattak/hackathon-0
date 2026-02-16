@@ -127,3 +127,73 @@ def test_full_reply_pipeline(tmp_path):
     assert done_path.parent.name == "Done"
     assert not approved_path.exists()
     service.users().messages().send.assert_called_once()
+
+
+def test_rejection_feedback_loop(tmp_path):
+    """End-to-end: email -> plan -> reject -> learning added to Agent Memory."""
+    from setup_vault import setup_vault
+    from src.watchers.gmail_watcher import GmailWatcher
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    service = MagicMock()
+    service.users().messages().list.return_value.execute.return_value = {
+        "messages": [{"id": "msg_rej_e2e", "threadId": "t_rej"}]
+    }
+    service.users().messages().get.return_value.execute.return_value = {
+        "id": "msg_rej_e2e",
+        "threadId": "t_rej",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "vip@example.com"},
+                {"name": "Subject", "value": "Urgent Request"},
+                {"name": "Date", "value": "2026-02-16"},
+            ],
+            "body": {"data": "SSBuZWVkIHRoaXMgZG9uZSBBU0FQ"},
+        },
+        "labelIds": ["INBOX"],
+    }
+    service.users().labels().list.return_value.execute.return_value = {
+        "labels": [{"id": "L1", "name": "Processed-by-FTE"}]
+    }
+
+    # Step 1: Watcher detects email
+    watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
+    watcher.run_once()
+    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    assert len(action_files) == 1
+
+    # Step 2: Orchestrator creates plan with a reply
+    orch = Orchestrator(vault_path=tmp_path, gmail_service=service)
+    claude_plan = (
+        "## Analysis\nUrgent request from VIP.\n\n"
+        "## Recommended Actions\n1. Reply immediately\n\n"
+        "## Requires Approval\n- [ ] Send reply\n\n"
+        "## Reply Draft\n"
+        "---BEGIN REPLY---\n"
+        "Dear Sir/Madam,\n\nI have received your request and will process it.\n\n"
+        "Yours faithfully\n"
+        "---END REPLY---"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_plan
+        plan_path = orch.process_action(action_files[0])
+
+    assert plan_path.parent.name == "Pending_Approval"
+
+    # Step 3: Human rejects the plan (too formal)
+    rejected_path = tmp_path / "Rejected" / plan_path.name
+    shutil.move(str(plan_path), str(rejected_path))
+
+    # Step 4: Orchestrator reviews rejection and learns
+    with patch.object(orch, "_invoke_claude_review") as mock_review:
+        mock_review.return_value = "Don't use 'Dear Sir/Madam' or 'Yours faithfully'. Match the sender's informal tone."
+        done_path = orch.review_rejected(rejected_path)
+
+    assert done_path.parent.name == "Done"
+    assert not rejected_path.exists()
+
+    # Step 5: Verify learning was added to Agent Memory
+    memory_content = (tmp_path / "Agent_Memory.md").read_text()
+    assert "Don't use 'Dear Sir/Madam'" in memory_content
