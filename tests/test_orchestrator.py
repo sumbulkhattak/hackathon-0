@@ -227,3 +227,18 @@ def test_review_rejected_creates_memory_if_missing(vault):
     assert memory_path.exists()
     content = memory_path.read_text()
     assert "A useful learning." in content
+
+
+def test_invoke_claude_includes_agent_memory(vault):
+    """_invoke_claude should include Agent_Memory.md content in the prompt."""
+    from src.orchestrator import Orchestrator
+    memory_path = vault / "Agent_Memory.md"
+    memory_path.write_text("# Agent Memory\n\n## Patterns\n- Don't be overly formal.\n")
+    orch = Orchestrator(vault_path=vault)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="## Analysis\nTest response.")
+        orch._invoke_claude("Test action content", "Test handbook")
+        call_args = mock_run.call_args[0][0]
+        prompt = call_args[-1]  # Last arg is the prompt string
+        assert "Agent Memory" in prompt
+        assert "Don't be overly formal." in prompt

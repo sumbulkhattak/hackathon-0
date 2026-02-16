@@ -223,11 +223,23 @@ Respond with ONLY the learning text, no markdown headers or formatting.
             return ""
 
     def _invoke_claude(self, action_content: str, handbook: str) -> str:
+        # Read agent memory
+        memory = ""
+        if self.memory_path.exists():
+            memory = self.memory_path.read_text(encoding="utf-8")
+
+        memory_section = ""
+        if memory.strip():
+            memory_section = f"""
+## Agent Memory (learnings from past decisions)
+{memory}
+"""
+
         prompt = f"""You are a Digital FTE (AI employee). Analyze the following action item and create a plan.
 
 ## Company Handbook
 {handbook}
-
+{memory_section}
 ## Action Item
 {action_content}
 
@@ -237,6 +249,7 @@ Respond with ONLY the learning text, no markdown headers or formatting.
 3. List recommended actions
 4. Identify which actions require human approval
 5. If a reply email is appropriate, draft the full reply text
+6. Apply any relevant learnings from Agent Memory
 
 Respond with:
 ## Analysis
