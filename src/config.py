@@ -12,6 +12,7 @@ class Config:
     gmail_filter: str
     claude_model: str
     log_level: str
+    daily_send_limit: int
 
 
 def load_config() -> Config:
@@ -23,4 +24,5 @@ def load_config() -> Config:
         gmail_filter=os.getenv("GMAIL_FILTER", "is:unread"),
         claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5-20250929"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
+        daily_send_limit=int(os.getenv("DAILY_SEND_LIMIT", "20")),
     )
