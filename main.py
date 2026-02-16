@@ -41,10 +41,12 @@ def main():
     orchestrator = Orchestrator(
         vault_path=cfg.vault_path,
         claude_model=cfg.claude_model,
+        gmail_service=gmail_service,
+        daily_send_limit=cfg.daily_send_limit,
     )
     logger.info(
         f"Digital FTE started — watching Gmail every {cfg.gmail_check_interval}s "
-        f"(filter: {cfg.gmail_filter})"
+        f"(filter: {cfg.gmail_filter}, send_limit: {cfg.daily_send_limit}/day)"
     )
     logger.info("Press Ctrl+C to stop")
     try:
