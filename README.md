@@ -1,8 +1,8 @@
-# Digital FTE — Bronze Tier
+# Digital FTE — Silver Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop.
+> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with email replies.
 
-An autonomous AI agent that monitors your Gmail, creates actionable plans using Claude, and routes decisions through a human-approval pipeline — all powered by an Obsidian vault.
+An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault.
 
 ## Architecture
 
@@ -15,13 +15,13 @@ Gmail ──► Gmail Watcher ──► vault/Needs_Action/
                                     │
                               Human reviews
                                     │
-                            vault/Approved/ ──► vault/Done/
+                            vault/Approved/ ──► Gmail Reply ──► vault/Done/
 ```
 
 **Four layers:**
 1. **Perception** — Gmail Watcher polls for new emails
 2. **Reasoning** — Claude Code analyzes emails and generates plans
-3. **Action** — Approved plans are executed (Bronze: logged)
+3. **Action** — Approved plans are executed (Silver: email replies sent via Gmail API)
 4. **Memory** — Obsidian vault stores everything as markdown
 
 ## Prerequisites
@@ -70,9 +70,10 @@ python main.py
 The agent will:
 1. Poll Gmail every 60 seconds (configurable)
 2. Create action files in `vault/Needs_Action/`
-3. Process them with Claude, creating plans in `vault/Pending_Approval/`
-4. Wait for you to review — move approved files to `vault/Approved/`
-5. Execute and archive to `vault/Done/`
+3. Process them with Claude, drafting reply text in `vault/Pending_Approval/`
+4. Wait for you to review — edit the reply if needed, then move to `vault/Approved/`
+5. **Send email replies** for approved plans that include a reply draft
+6. Archive to `vault/Done/`
 
 Open the `vault/` folder in Obsidian to see your dashboard.
 
@@ -87,6 +88,7 @@ Edit `.env` to customize:
 | `GMAIL_FILTER` | `is:unread` | Gmail search filter |
 | `CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` | Claude model for analysis |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `DAILY_SEND_LIMIT` | `20` | Max emails sent per day |
 
 ## Vault Structure
 
@@ -105,12 +107,13 @@ vault/
 
 - Credentials stored in `credentials/` (gitignored)
 - All secrets in `.env` (gitignored)
-- Human-in-the-loop: all email actions require approval
+- Human-in-the-loop: all email replies require approval before sending
+- Daily send limit (default: 20) prevents runaway sends
 - Activity logged to `vault/Logs/`
 
 ## Tier Declaration
 
-**Bronze Tier** — Single Gmail watcher, basic Claude integration, Obsidian vault with approval pipeline.
+**Silver Tier** — Gmail watcher with reply sending, Claude-drafted responses, daily send limits, Obsidian vault with approval pipeline.
 
 ## License
 
