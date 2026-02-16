@@ -153,6 +153,75 @@ class Orchestrator:
         logger.info(f"Completed: {dest.name}")
         return dest
 
+    def review_rejected(self, rejected_file: Path) -> Path:
+        """Analyze a rejected plan, extract a learning, and update Agent Memory."""
+        logger.info(f"Reviewing rejected plan: {rejected_file.name}")
+        plan_content = rejected_file.read_text(encoding="utf-8")
+
+        # Read current memory
+        memory = ""
+        if self.memory_path.exists():
+            memory = self.memory_path.read_text(encoding="utf-8")
+
+        # Ask Claude why this was rejected
+        learning = self._invoke_claude_review(plan_content, memory)
+
+        # Append learning to Agent_Memory.md
+        if learning.strip():
+            now = datetime.now(timezone.utc).isoformat()
+            entry = f"\n- **{now}** — Rejected plan for \"{rejected_file.stem}\": {learning}\n"
+            if not self.memory_path.exists():
+                self.memory_path.write_text(
+                    "# Agent Memory\n\n## Patterns\n" + entry
+                )
+            else:
+                with open(self.memory_path, "a", encoding="utf-8") as f:
+                    f.write(entry)
+            logger.info(f"Learning added to Agent Memory: {learning[:80]}...")
+        else:
+            logger.warning(f"No learning extracted for {rejected_file.name}")
+
+        # Move to Done
+        dest = self.done / rejected_file.name
+        shutil.move(str(rejected_file), str(dest))
+        log_action(
+            logs_dir=self.logs,
+            actor="orchestrator",
+            action="rejection_reviewed",
+            source=rejected_file.name,
+            result="learning_added" if learning.strip() else "no_learning",
+        )
+        logger.info(f"Rejected plan reviewed and moved to Done: {dest.name}")
+        return dest
+
+    def _invoke_claude_review(self, plan_content: str, memory: str) -> str:
+        """Ask Claude to analyze a rejected plan and produce a learning."""
+        prompt = f"""You are reviewing a rejected plan. The human moved this plan to Rejected/ instead of approving it. Analyze what went wrong and produce ONE concise learning (1-2 sentences) that should guide future plans.
+
+## The Rejected Plan
+{plan_content}
+
+## Current Agent Memory
+{memory}
+
+Respond with ONLY the learning text, no markdown headers or formatting.
+"""
+        try:
+            result = subprocess.run(
+                ["claude", "--print", "--model", self.claude_model, prompt],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                logger.error(f"Claude review error: {result.stderr}")
+                return ""
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            logger.error(f"Claude review failed: {e}")
+            return ""
+
     def _invoke_claude(self, action_content: str, handbook: str) -> str:
         prompt = f"""You are a Digital FTE (AI employee). Analyze the following action item and create a plan.
 

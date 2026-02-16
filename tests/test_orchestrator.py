@@ -143,3 +143,87 @@ def test_orchestrator_detects_rejected_files(vault):
     rejected = orch.get_rejected_actions()
     assert len(rejected) == 1
     assert rejected[0].name == "plan-bad.md"
+
+
+def make_rejected_plan(vault, name="plan-rejected-test.md"):
+    """Helper: create a rejected plan file."""
+    content = """---
+source: email-test.md
+created: 2026-02-16T10:00:00Z
+status: pending_approval
+action: reply
+gmail_id: msg_rej1
+to: bob@test.com
+subject: "Re: Hello"
+---
+
+# Plan: email-test
+
+## Analysis
+General greeting.
+
+## Reply Draft
+---BEGIN REPLY---
+Dear Sir/Madam,
+
+I hereby acknowledge your correspondence.
+
+Yours faithfully
+---END REPLY---
+"""
+    path = vault / "Rejected" / name
+    path.write_text(content)
+    return path
+
+
+def test_review_rejected_moves_to_done(vault):
+    """review_rejected should move the file to Done/ after review."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    rejected = make_rejected_plan(vault)
+    with patch.object(orch, "_invoke_claude_review") as mock_review:
+        mock_review.return_value = "Don't use overly formal language. Match the sender's casual tone."
+        orch.review_rejected(rejected)
+    assert not rejected.exists()
+    assert (vault / "Done" / "plan-rejected-test.md").exists()
+
+
+def test_review_rejected_appends_learning_to_memory(vault):
+    """review_rejected should append the learning to Agent_Memory.md."""
+    from src.orchestrator import Orchestrator
+    memory_path = vault / "Agent_Memory.md"
+    memory_path.write_text("# Agent Memory\n\n## Patterns\n")
+    orch = Orchestrator(vault_path=vault)
+    rejected = make_rejected_plan(vault)
+    with patch.object(orch, "_invoke_claude_review") as mock_review:
+        mock_review.return_value = "Don't use overly formal language."
+        orch.review_rejected(rejected)
+    content = memory_path.read_text()
+    assert "Don't use overly formal language." in content
+
+
+def test_review_rejected_handles_claude_failure(vault):
+    """review_rejected should still move to Done if Claude fails."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    rejected = make_rejected_plan(vault)
+    with patch.object(orch, "_invoke_claude_review") as mock_review:
+        mock_review.return_value = ""
+        orch.review_rejected(rejected)
+    assert not rejected.exists()
+    assert (vault / "Done" / "plan-rejected-test.md").exists()
+
+
+def test_review_rejected_creates_memory_if_missing(vault):
+    """review_rejected should create Agent_Memory.md if it doesn't exist."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    rejected = make_rejected_plan(vault)
+    memory_path = vault / "Agent_Memory.md"
+    assert not memory_path.exists()
+    with patch.object(orch, "_invoke_claude_review") as mock_review:
+        mock_review.return_value = "A useful learning."
+        orch.review_rejected(rejected)
+    assert memory_path.exists()
+    content = memory_path.read_text()
+    assert "A useful learning." in content
