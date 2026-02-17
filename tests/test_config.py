@@ -46,3 +46,19 @@ def test_config_daily_send_limit_default(monkeypatch):
     from src.config import load_config
     cfg = load_config()
     assert cfg.daily_send_limit == 20
+
+
+def test_config_loads_auto_approve_threshold(monkeypatch):
+    """Config should read AUTO_APPROVE_THRESHOLD from environment."""
+    monkeypatch.setenv("AUTO_APPROVE_THRESHOLD", "0.85")
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.auto_approve_threshold == 0.85
+
+
+def test_config_auto_approve_threshold_default(monkeypatch):
+    """Config should default auto_approve_threshold to 1.0 (disabled)."""
+    monkeypatch.delenv("AUTO_APPROVE_THRESHOLD", raising=False)
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.auto_approve_threshold == 1.0
