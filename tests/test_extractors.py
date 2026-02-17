@@ -58,3 +58,52 @@ def test_extract_pdf_text_truncates_long_content(tmp_path):
     result = extract_pdf_text(pdf_path, max_chars=100)
     assert len(result) <= 115  # 100 + room for "[truncated]"
     assert "[truncated]" in result
+
+
+# --- Image extraction ---
+
+
+def test_extract_image_description_calls_claude(tmp_path):
+    """extract_image_description should call Claude CLI with the image."""
+    from src.extractors import extract_image_description
+    img_path = tmp_path / "receipt.png"
+    img_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Receipt from Store XYZ. Total: $42.50. Date: 2026-02-17."
+        )
+        result = extract_image_description(img_path)
+    assert "Receipt" in result or "$42.50" in result
+    mock_run.assert_called_once()
+    call_args = mock_run.call_args[0][0]
+    assert "claude" in call_args[0]
+
+
+def test_extract_image_description_returns_empty_on_failure(tmp_path):
+    """extract_image_description should return empty string when Claude fails."""
+    from src.extractors import extract_image_description
+    img_path = tmp_path / "photo.jpg"
+    img_path.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=1, stderr="error")
+        result = extract_image_description(img_path)
+    assert result == ""
+
+
+def test_extract_image_description_returns_empty_on_missing_file(tmp_path):
+    """extract_image_description should return empty string for nonexistent file."""
+    from src.extractors import extract_image_description
+    result = extract_image_description(tmp_path / "ghost.png")
+    assert result == ""
+
+
+def test_extract_image_description_returns_empty_on_timeout(tmp_path):
+    """extract_image_description should return empty string on subprocess timeout."""
+    from src.extractors import extract_image_description
+    img_path = tmp_path / "slow.png"
+    img_path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+    with patch("subprocess.run") as mock_run:
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=120)
+        result = extract_image_description(img_path)
+    assert result == ""
