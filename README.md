@@ -172,14 +172,26 @@ All AI functionality is implemented as Agent Skills in `skills/`:
 | `ralph-wiggum.md` | Autonomous multi-step task completion |
 | `error-recovery.md` | Retry logic and graceful degradation |
 | `ceo-briefing.md` | Monday Morning CEO Briefing generation |
+| `social-media.md` | Social media posting (LinkedIn, Facebook, Twitter) |
 
-## MCP Server
+## MCP Servers
+
+### Email MCP Server
 
 The Email MCP Server (`mcp_servers/email_server.py`) exposes tools for Claude Code:
 - **send_email** — Send threaded Gmail replies
 - **search_emails** — Search Gmail with any query
 - **list_pending** — List pending approval items
 - **get_vault_status** — Vault folder counts and status
+
+### Social Media MCP Server
+
+The Social Media MCP Server (`mcp_servers/social_server.py`) exposes tools for Claude Code:
+- **post_to_linkedin** — Post content to LinkedIn
+- **post_to_facebook** — Post content to Facebook page
+- **post_to_twitter** — Post content to Twitter (auto-truncates to 280 chars)
+- **create_draft_post** — Create a draft post in Pending_Approval/ for human review
+- **get_social_summary** — Get social media activity summary from logs
 
 ## Scheduling
 
@@ -229,7 +241,7 @@ Analyzes completed tasks, bottlenecks, activity stats, and generates proactive s
 
 ## Tier Declaration
 
-**Gold Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, 12 Agent Skills for all AI functionality, cron/Task Scheduler scheduling support, Ralph Wiggum loop for autonomous multi-step task completion, error recovery with exponential backoff and quarantine queue, Monday Morning CEO Briefing with activity analysis and proactive suggestions, comprehensive audit logging.
+**Gold Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, Social Media MCP server with 5 tools, 13 Agent Skills for all AI functionality, social media integration (LinkedIn, Facebook, Twitter) with HITL draft approval, cron/Task Scheduler scheduling support, Ralph Wiggum loop for autonomous multi-step task completion, error recovery with exponential backoff and quarantine queue, Monday Morning CEO Briefing with activity analysis and proactive suggestions, comprehensive architecture documentation, comprehensive audit logging.
 
 ## License
 
