@@ -438,3 +438,50 @@ def test_invoke_claude_includes_agent_memory(vault):
         prompt = call_args[-1]  # Last arg is the prompt string
         assert "Agent Memory" in prompt
         assert "Don't be overly formal." in prompt
+
+
+def test_get_pending_actions_sorted_by_priority(tmp_path):
+    """get_pending_actions should return high-priority files before normal, then low."""
+    from setup_vault import setup_vault
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    # Create action files with different priorities
+    (tmp_path / "Needs_Action" / "email-low.md").write_text(
+        "---\npriority: low\n---\n# Low priority email", encoding="utf-8"
+    )
+    (tmp_path / "Needs_Action" / "email-normal.md").write_text(
+        "---\npriority: normal\n---\n# Normal priority email", encoding="utf-8"
+    )
+    (tmp_path / "Needs_Action" / "email-high.md").write_text(
+        "---\npriority: high\n---\n# High priority email", encoding="utf-8"
+    )
+
+    orch = Orchestrator(vault_path=tmp_path)
+    actions = orch.get_pending_actions()
+
+    assert len(actions) == 3
+    assert actions[0].name == "email-high.md"
+    assert actions[2].name == "email-low.md"
+
+
+def test_get_pending_actions_handles_missing_priority(tmp_path):
+    """Files without priority frontmatter should be treated as normal."""
+    from setup_vault import setup_vault
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    (tmp_path / "Needs_Action" / "email-high.md").write_text(
+        "---\npriority: high\n---\n# High", encoding="utf-8"
+    )
+    (tmp_path / "Needs_Action" / "email-nofm.md").write_text(
+        "# No frontmatter email", encoding="utf-8"
+    )
+
+    orch = Orchestrator(vault_path=tmp_path)
+    actions = orch.get_pending_actions()
+
+    assert len(actions) == 2
+    assert actions[0].name == "email-high.md"
