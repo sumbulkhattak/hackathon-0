@@ -78,3 +78,74 @@ def test_gmail_watcher_marks_as_processed(vault, mock_gmail_service):
     watcher = GmailWatcher(vault_path=vault, gmail_service=mock_gmail_service)
     watcher.mark_as_processed("msg_123")
     mock_gmail_service.users().messages().modify.assert_called_once()
+
+
+def test_gmail_watcher_accepts_vip_senders(vault, mock_gmail_service):
+    """GmailWatcher should accept and store vip_senders parameter."""
+    from src.watchers.gmail_watcher import GmailWatcher
+    watcher = GmailWatcher(
+        vault_path=vault, gmail_service=mock_gmail_service,
+        vip_senders=["boss@co.com"],
+    )
+    assert watcher.vip_senders == ["boss@co.com"]
+
+
+def test_gmail_watcher_vip_senders_default_empty(vault, mock_gmail_service):
+    """GmailWatcher should default vip_senders to empty list."""
+    from src.watchers.gmail_watcher import GmailWatcher
+    watcher = GmailWatcher(vault_path=vault, gmail_service=mock_gmail_service)
+    assert watcher.vip_senders == []
+
+
+def test_action_file_has_high_priority_for_urgent_email(vault, mock_gmail_service):
+    """Action file should have priority: high when subject contains urgency keyword."""
+    from src.watchers.gmail_watcher import GmailWatcher
+    watcher = GmailWatcher(vault_path=vault, gmail_service=mock_gmail_service)
+    item = {
+        "id": "msg_urg",
+        "from": "someone@example.com",
+        "subject": "URGENT: Server is down",
+        "date": "2026-02-17",
+        "body": "The production server is down.",
+        "labels": ["INBOX"],
+    }
+    path = watcher.create_action_file(item)
+    content = path.read_text()
+    assert "priority: high" in content
+
+
+def test_action_file_has_low_priority_for_newsletter(vault, mock_gmail_service):
+    """Action file should have priority: low for newsletter senders."""
+    from src.watchers.gmail_watcher import GmailWatcher
+    watcher = GmailWatcher(vault_path=vault, gmail_service=mock_gmail_service)
+    item = {
+        "id": "msg_news",
+        "from": "newsletter@blog.com",
+        "subject": "Weekly Digest",
+        "date": "2026-02-17",
+        "body": "This week's top stories.",
+        "labels": ["INBOX"],
+    }
+    path = watcher.create_action_file(item)
+    content = path.read_text()
+    assert "priority: low" in content
+
+
+def test_action_file_has_high_priority_for_vip_sender(vault, mock_gmail_service):
+    """Action file should have priority: high for VIP senders."""
+    from src.watchers.gmail_watcher import GmailWatcher
+    watcher = GmailWatcher(
+        vault_path=vault, gmail_service=mock_gmail_service,
+        vip_senders=["ceo@company.com"],
+    )
+    item = {
+        "id": "msg_vip",
+        "from": "ceo@company.com",
+        "subject": "Quick question",
+        "date": "2026-02-17",
+        "body": "Can you check something?",
+        "labels": ["INBOX"],
+    }
+    path = watcher.create_action_file(item)
+    content = path.read_text()
+    assert "priority: high" in content
