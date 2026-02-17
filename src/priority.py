@@ -27,4 +27,11 @@ def classify_priority(
         if keyword in subject_lower or keyword in body_lower:
             return "high"
 
+    # Check VIP senders
+    if vip_senders:
+        sender_lower = sender.lower()
+        for vip in vip_senders:
+            if vip.lower() == sender_lower:
+                return "high"
+
     return "normal"
