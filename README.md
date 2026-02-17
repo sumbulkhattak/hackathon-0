@@ -1,6 +1,6 @@
-# Digital FTE — Platinum Tier
+# Digital FTE — Diamond Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with confidence-based auto-approve.
+> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with document content extraction.
 
 An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault.
 
@@ -8,28 +8,31 @@ An autonomous AI agent that monitors your Gmail, drafts replies using Claude, an
 
 ```
 Gmail ──► Gmail Watcher ──► vault/Needs_Action/
-                                    │
-                            Orchestrator + Claude ◄── vault/Agent_Memory.md
-                                    │
-                            confidence >= threshold?
-                               │           │
-                              YES          NO
-                               │           │
-                          Auto-execute   vault/Pending_Approval/
-                               │           │
-                               │      Human reviews
-                               │        │      │
-                               │  Approved/  Rejected/
-                               │      │          │
-                               │  Gmail Reply  Claude reviews
-                               │      │          │
-                             Done/  Done/   learning → Agent_Memory.md
-                                                 │
-                                               Done/
+                                       │
+Files ──► File Watcher ──► Extract ──┘
+               (PDF text / image vision)
+                                       │
+                               Orchestrator + Claude ◄── vault/Agent_Memory.md
+                                       │
+                               confidence >= threshold?
+                                  │           │
+                                 YES          NO
+                                  │           │
+                             Auto-execute   vault/Pending_Approval/
+                                  │           │
+                                  │      Human reviews
+                                  │        │      │
+                                  │  Approved/  Rejected/
+                                  │      │          │
+                                  │  Gmail Reply  Claude reviews
+                                  │      │          │
+                                Done/  Done/   learning → Agent_Memory.md
+                                                    │
+                                                  Done/
 ```
 
 **Four layers:**
-1. **Perception** — Gmail Watcher polls for new emails
+1. **Perception** — Gmail Watcher polls for new emails; File Watcher extracts content from PDFs and images
 2. **Reasoning** — Claude Code analyzes emails and generates plans
 3. **Action** — High-confidence plans auto-execute; others require approval; rejected plans generate learnings
 4. **Memory** — Obsidian vault stores everything as markdown
@@ -80,7 +83,8 @@ python main.py
 The agent will:
 1. Poll Gmail every 60 seconds (configurable)
 2. Create action files in `vault/Needs_Action/`
-3. Process them with Claude, which includes a confidence score in each plan
+3. Detect files in `vault/Incoming_Files/`, extract text (PDFs) or descriptions (images), create enriched action files
+4. Process them with Claude, which includes a confidence score in each plan
 4. **Auto-approve high-confidence plans** (confidence >= threshold) and execute immediately
 5. Route lower-confidence plans to `vault/Pending_Approval/` for human review
 6. **Send email replies** for approved plans that include a reply draft
@@ -107,6 +111,7 @@ Edit `.env` to customize:
 
 ```
 vault/
+├── Incoming_Files/     # Drop PDFs/images here for extraction
 ├── Needs_Action/       # New items detected by watchers
 ├── Plans/              # Claude-generated plans
 ├── Pending_Approval/   # Awaiting human review
@@ -128,7 +133,7 @@ vault/
 
 ## Tier Declaration
 
-**Platinum Tier** — Gmail watcher with reply sending, file watcher, self-review loops, confidence-based auto-approve for high-confidence plans, Obsidian vault with approval pipeline.
+**Diamond Tier** — Gmail watcher with reply sending, file watcher with PDF text extraction and image vision, self-review loops, confidence-based auto-approve, Obsidian vault with approval pipeline.
 
 ## License
 
