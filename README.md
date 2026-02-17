@@ -152,6 +152,40 @@ vault/
 └── Company_Handbook.md # Rules for Claude's behavior
 ```
 
+## Agent Skills
+
+All AI functionality is implemented as Agent Skills in `skills/`:
+
+| Skill | Description |
+|-------|-------------|
+| `email-triage.md` | Priority classification (high/normal/low) |
+| `reply-drafting.md` | Email reply generation with confidence scoring |
+| `file-extraction.md` | PDF text and image vision extraction |
+| `approval-management.md` | HITL approval pipeline with auto-approve |
+| `rejection-learning.md` | Learn from rejected plans via Agent Memory |
+| `dashboard-generation.md` | Auto-generated vault dashboard + web UI |
+| `email-sending.md` | Threaded Gmail replies with rate limiting |
+| `mcp-email-server.md` | MCP server for email operations |
+| `scheduling.md` | Cron/Task Scheduler integration |
+
+## MCP Server
+
+The Email MCP Server (`mcp_servers/email_server.py`) exposes tools for Claude Code:
+- **send_email** — Send threaded Gmail replies
+- **search_emails** — Search Gmail with any query
+- **list_pending** — List pending approval items
+- **get_vault_status** — Vault folder counts and status
+
+## Scheduling
+
+```bash
+# One-shot run (for cron/Task Scheduler)
+python -m src.scheduler --once
+
+# Generate crontab entry
+python -c "from src.scheduler import generate_cron_entry; print(generate_cron_entry())"
+```
+
 ## Security
 
 - Credentials stored in `credentials/` (gitignored)
@@ -162,7 +196,7 @@ vault/
 
 ## Tier Declaration
 
-**Obsidian Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md.
+**Silver Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, Agent Skills for all AI functionality, cron/Task Scheduler scheduling support.
 
 ## License
 
