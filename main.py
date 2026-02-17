@@ -1,5 +1,6 @@
 """Digital FTE — Main entry point."""
 import logging
+import threading
 import time
 import sys
 from pathlib import Path
@@ -7,10 +8,29 @@ from pathlib import Path
 from src.config import load_config
 from src.utils import setup_logging
 from src.auth import get_gmail_service
+from src.dashboard import update_dashboard
 from src.watchers.gmail_watcher import GmailWatcher
 from src.watchers.file_watcher import FileWatcher
 from src.orchestrator import Orchestrator
 from setup_vault import setup_vault
+
+
+def start_web_dashboard(vault_path: Path, port: int, logger: logging.Logger):
+    """Start the FastAPI web dashboard in a background thread."""
+    import uvicorn
+    from src.web import create_app
+
+    create_app(vault_path)
+    logger.info(f"Web dashboard starting at http://localhost:{port}")
+
+    config = uvicorn.Config(
+        "src.web:app",
+        host="0.0.0.0",
+        port=port,
+        log_level="warning",
+    )
+    server = uvicorn.Server(config)
+    server.run()
 
 
 def main():
@@ -18,6 +38,32 @@ def main():
     logger = setup_logging(cfg.log_level)
     setup_vault(cfg.vault_path)
     logger.info(f"Vault ready at: {cfg.vault_path}")
+
+    # Check for dashboard-only mode
+    dashboard_only = "--dashboard-only" in sys.argv
+
+    # Start web dashboard if enabled
+    if cfg.web_enabled:
+        web_thread = threading.Thread(
+            target=start_web_dashboard,
+            args=(cfg.vault_path, cfg.web_port, logger),
+            daemon=True,
+        )
+        web_thread.start()
+        logger.info(f"Web dashboard available at http://localhost:{cfg.web_port}")
+
+    if dashboard_only:
+        logger.info("Running in dashboard-only mode (no Gmail required)")
+        logger.info("Press Ctrl+C to stop")
+        update_dashboard(cfg.vault_path)
+        try:
+            while True:
+                update_dashboard(cfg.vault_path)
+                time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("Digital FTE shutting down. Goodbye!")
+        return
+
     credentials_dir = Path("credentials")
     try:
         gmail_service = get_gmail_service(credentials_dir)
@@ -31,6 +77,7 @@ def main():
             "3. Create OAuth 2.0 credentials (Desktop app)\n"
             "4. Download the JSON and save as credentials/client_secret.json\n"
             "5. Run this script again\n"
+            "\nTIP: Run 'python main.py --dashboard-only' to start the web dashboard without Gmail.\n"
         )
         sys.exit(1)
     watcher = GmailWatcher(
@@ -81,6 +128,8 @@ def main():
                 orchestrator.execute_approved(approved_file)
             for rejected_file in orchestrator.get_rejected_actions():
                 orchestrator.review_rejected(rejected_file)
+            # Update dashboard after each cycle
+            update_dashboard(cfg.vault_path)
             time.sleep(cfg.gmail_check_interval)
     except KeyboardInterrupt:
         logger.info("Digital FTE shutting down. Goodbye!")

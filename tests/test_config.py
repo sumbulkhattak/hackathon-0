@@ -86,3 +86,27 @@ def test_config_vip_senders_strips_whitespace(monkeypatch):
     from src.config import load_config
     cfg = load_config()
     assert cfg.vip_senders == ["ceo@co.com", "client@big.com"]
+
+
+def test_config_web_enabled_default(monkeypatch):
+    """Config should default web_enabled to True."""
+    monkeypatch.delenv("WEB_ENABLED", raising=False)
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.web_enabled is True
+
+
+def test_config_web_port_from_env(monkeypatch):
+    """Config should read WEB_PORT from environment."""
+    monkeypatch.setenv("WEB_PORT", "3000")
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.web_port == 3000
+
+
+def test_config_web_port_default(monkeypatch):
+    """Config should default web_port to 8000."""
+    monkeypatch.delenv("WEB_PORT", raising=False)
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.web_port == 8000
