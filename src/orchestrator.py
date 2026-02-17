@@ -250,6 +250,7 @@ Respond with ONLY the learning text, no markdown headers or formatting.
 4. Identify which actions require human approval
 5. If a reply email is appropriate, draft the full reply text
 6. Apply any relevant learnings from Agent Memory
+7. Rate your confidence that this plan requires no human edits (0.0 to 1.0)
 
 Respond with:
 ## Analysis
@@ -268,6 +269,9 @@ If a reply is needed, include the reply text between these exact markers:
 ---END REPLY---
 
 If no reply is needed, omit the Reply Draft section entirely.
+
+## Confidence
+[0.0 to 1.0 — how confident you are this plan needs no human edits]
 """
         try:
             result = subprocess.run(

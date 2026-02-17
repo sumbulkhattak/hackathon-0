@@ -229,6 +229,19 @@ def test_review_rejected_creates_memory_if_missing(vault):
     assert "A useful learning." in content
 
 
+def test_invoke_claude_prompt_requests_confidence(vault):
+    """_invoke_claude prompt should ask Claude for a ## Confidence section."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="## Analysis\nTest.")
+        orch._invoke_claude("Test action", "Test handbook")
+        call_args = mock_run.call_args[0][0]
+        prompt = call_args[-1]
+        assert "## Confidence" in prompt
+        assert "0.0 to 1.0" in prompt
+
+
 def test_invoke_claude_includes_agent_memory(vault):
     """_invoke_claude should include Agent_Memory.md content in the prompt."""
     from src.orchestrator import Orchestrator
