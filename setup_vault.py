@@ -1,7 +1,7 @@
 """One-time Obsidian vault initialization."""
 from pathlib import Path
 
-VAULT_FOLDERS = ["Inbox", "Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs", "Incoming_Files", "Rejected"]
+VAULT_FOLDERS = ["Inbox", "Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs", "Incoming_Files", "Rejected", "Briefings", "Quarantine"]
 
 DEFAULT_HANDBOOK = """\
 # Company Handbook
