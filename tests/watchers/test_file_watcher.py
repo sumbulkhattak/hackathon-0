@@ -175,3 +175,47 @@ def test_file_watcher_claude_model_default(vault):
     """FileWatcher should default claude_model to claude-sonnet-4-5-20250929."""
     watcher = FileWatcher(vault_path=vault)
     assert watcher.claude_model == "claude-sonnet-4-5-20250929"
+
+
+# --- Extraction integration ---
+
+def test_action_file_contains_extracted_pdf_text(vault):
+    """create_action_file should embed extracted PDF text in the action file."""
+    watcher = FileWatcher(vault_path=vault)
+    _drop_file(vault, "invoice.pdf")
+    items = watcher.check_for_updates()
+    with patch("src.watchers.file_watcher.extract_pdf_text") as mock_extract:
+        mock_extract.return_value = "Invoice #99\nAmount: $500.00"
+        path = watcher.create_action_file(items[0])
+    content = path.read_text()
+    assert "## Extracted Content" in content
+    assert "Invoice #99" in content
+    assert "$500.00" in content
+    assert "extracted: true" in content
+
+
+def test_action_file_contains_extracted_image_description(vault):
+    """create_action_file should embed Claude vision description for images."""
+    watcher = FileWatcher(vault_path=vault)
+    _drop_file(vault, "receipt.png")
+    items = watcher.check_for_updates()
+    with patch("src.watchers.file_watcher.extract_image_description") as mock_extract:
+        mock_extract.return_value = "Receipt from Store XYZ. Total: $42.50."
+        path = watcher.create_action_file(items[0])
+    content = path.read_text()
+    assert "## Extracted Content" in content
+    assert "Receipt from Store XYZ" in content
+    assert "extracted: true" in content
+
+
+def test_action_file_falls_back_on_extraction_failure(vault):
+    """create_action_file should use placeholder when extraction returns empty."""
+    watcher = FileWatcher(vault_path=vault)
+    _drop_file(vault, "broken.pdf")
+    items = watcher.check_for_updates()
+    with patch("src.watchers.file_watcher.extract_pdf_text") as mock_extract:
+        mock_extract.return_value = ""
+        path = watcher.create_action_file(items[0])
+    content = path.read_text()
+    assert "extracted: false" in content
+    assert "pending" in content.lower() or "Review manually" in content
