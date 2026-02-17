@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.social import (
     LinkedInPoster,
     FacebookPoster,
+    InstagramPoster,
     TwitterPoster,
     create_social_post_draft,
     generate_social_summary,
@@ -79,6 +80,30 @@ def post_to_facebook(content: str) -> str:
             action="social_posted",
             source="mcp_tool",
             result=f"facebook:{content[:50]}",
+        )
+
+    return json.dumps(result)
+
+
+@mcp.tool()
+def post_to_instagram(content: str, image_url: str) -> str:
+    """Post content to Instagram (requires an image URL).
+
+    Args:
+        content: The caption text for the Instagram post (max 2200 chars).
+        image_url: URL of the image to post.
+    """
+    logs_dir = VAULT_PATH / "Logs"
+    poster = InstagramPoster()
+    result = poster.post(content, image_url=image_url)
+
+    if result.get("success"):
+        log_action(
+            logs_dir=logs_dir,
+            actor="mcp_social_server",
+            action="social_posted",
+            source="mcp_tool",
+            result=f"instagram:{content[:50]}",
         )
 
     return json.dumps(result)

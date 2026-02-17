@@ -8,6 +8,7 @@ import pytest
 from src.social import (
     LinkedInPoster,
     FacebookPoster,
+    InstagramPoster,
     TwitterPoster,
     get_all_posters,
     create_social_post_draft,
@@ -89,15 +90,50 @@ def test_twitter_poster_truncates_long_content():
     assert result["content"].endswith("...")
 
 
+# --- InstagramPoster tests ---
+
+
+def test_instagram_poster_no_credentials():
+    poster = InstagramPoster(access_token="", ig_user_id="")
+    result = poster.post("Hello Instagram!", image_url="http://example.com/img.jpg")
+    assert result["success"] is False
+    assert "not configured" in result["error"]
+
+
+def test_instagram_poster_with_credentials():
+    poster = InstagramPoster(access_token="test-token", ig_user_id="123456")
+    result = poster.post("Hello Instagram!", image_url="http://example.com/img.jpg")
+    assert result["success"] is True
+    assert result["platform"] == "instagram"
+    assert result["image_url"] == "http://example.com/img.jpg"
+
+
+def test_instagram_poster_requires_image():
+    poster = InstagramPoster(access_token="test-token", ig_user_id="123456")
+    result = poster.post("No image post")
+    assert result["success"] is False
+    assert "image_url" in result["error"]
+
+
+def test_instagram_poster_truncates_long_caption():
+    poster = InstagramPoster(access_token="test-token", ig_user_id="123456")
+    long_caption = "A" * 2500
+    result = poster.post(long_caption, image_url="http://example.com/img.jpg")
+    assert result["success"] is True
+    assert len(result["content"]) == 2200
+    assert result["content"].endswith("...")
+
+
 # --- get_all_posters tests ---
 
 
-def test_get_all_posters_returns_three():
+def test_get_all_posters_returns_four():
     posters = get_all_posters()
-    assert len(posters) == 3
+    assert len(posters) == 4
     platforms = [p.platform for p in posters]
     assert "linkedin" in platforms
     assert "facebook" in platforms
+    assert "instagram" in platforms
     assert "twitter" in platforms
 
 
