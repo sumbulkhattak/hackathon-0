@@ -14,12 +14,13 @@ logger = logging.getLogger("digital_fte.orchestrator")
 class Orchestrator:
     def __init__(self, vault_path: Path, claude_model: str = "claude-sonnet-4-5-20250929",
                  gmail_service=None, daily_send_limit: int = 20,
-                 auto_approve_threshold: float = 1.0):
+                 auto_approve_threshold: float = 1.0, work_zone: str = "local"):
         self.vault_path = vault_path
         self.claude_model = claude_model
         self.gmail_service = gmail_service
         self.daily_send_limit = daily_send_limit
         self.auto_approve_threshold = auto_approve_threshold
+        self.work_zone = work_zone  # "local" or "cloud"
         self.needs_action = vault_path / "Needs_Action"
         self.plans = vault_path / "Plans"
         self.pending_approval = vault_path / "Pending_Approval"
@@ -89,7 +90,11 @@ class Orchestrator:
 {claude_response}
 """
         # Check if auto-approve is possible
-        can_auto_approve = confidence >= self.auto_approve_threshold
+        # Cloud zone never auto-approves or executes — draft only
+        can_auto_approve = (
+            self.work_zone == "local"
+            and confidence >= self.auto_approve_threshold
+        )
 
         if can_auto_approve and "---BEGIN REPLY---" in claude_response:
             # Reply action — check send limit before auto-approving
@@ -141,6 +146,10 @@ class Orchestrator:
             return plan_path
 
     def execute_approved(self, approved_file: Path) -> Path:
+        # Cloud zone cannot execute — only local zone executes
+        if self.work_zone == "cloud":
+            logger.warning(f"Cloud zone cannot execute. Skipping: {approved_file.name}")
+            return approved_file
         logger.info(f"Executing approved action: {approved_file.name}")
         metadata = parse_frontmatter(approved_file)
 
