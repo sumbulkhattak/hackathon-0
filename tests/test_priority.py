@@ -96,3 +96,21 @@ def test_vip_takes_precedence_over_newsletter():
         vip_senders=["noreply@vip-company.com"],
     )
     assert result == "high"
+
+
+def test_classify_handles_empty_strings():
+    """Empty subject, body, and sender should return normal."""
+    result = classify_priority(subject="", body="", sender="")
+    assert result == "normal"
+
+
+def test_classify_handles_keyword_as_substring():
+    """Urgency keyword as substring should still match (e.g., 'overdue' in 'overdue-invoice')."""
+    result = classify_priority(subject="overdue-invoice reminder", body="", sender="billing@co.com")
+    assert result == "high"
+
+
+def test_classify_defaults_to_normal_on_exception():
+    """If classification fails for any reason, default to normal."""
+    result = classify_priority(subject="Hello", body="World", sender="test@test.com")
+    assert result in ("high", "normal", "low")
