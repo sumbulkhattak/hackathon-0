@@ -55,6 +55,7 @@ def main():
         file_watcher = FileWatcher(
             vault_path=cfg.vault_path,
             dry_run=cfg.file_watch_dry_run,
+            claude_model=cfg.claude_model,
         )
         mode = "dry-run" if cfg.file_watch_dry_run else "live"
         logger.info(f"File watcher enabled ({mode})")
