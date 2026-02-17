@@ -147,6 +147,8 @@ vault/
 ├── Rejected/           # Human-rejected plans for review
 ├── Done/               # Completed items
 ├── Logs/               # Daily JSON activity logs
+├── Briefings/          # CEO Briefings (weekly audit reports)
+├── Quarantine/         # Failed actions awaiting retry
 ├── Dashboard.md        # Auto-generated system status
 ├── Agent_Memory.md     # Learnings from rejected plans
 └── Company_Handbook.md # Rules for Claude's behavior
@@ -167,6 +169,9 @@ All AI functionality is implemented as Agent Skills in `skills/`:
 | `email-sending.md` | Threaded Gmail replies with rate limiting |
 | `mcp-email-server.md` | MCP server for email operations |
 | `scheduling.md` | Cron/Task Scheduler integration |
+| `ralph-wiggum.md` | Autonomous multi-step task completion |
+| `error-recovery.md` | Retry logic and graceful degradation |
+| `ceo-briefing.md` | Monday Morning CEO Briefing generation |
 
 ## MCP Server
 
@@ -186,6 +191,34 @@ python -m src.scheduler --once
 python -c "from src.scheduler import generate_cron_entry; print(generate_cron_entry())"
 ```
 
+## Ralph Wiggum Loop
+
+Autonomous multi-step task completion — keeps Claude iterating until done:
+
+```bash
+# Promise-based: Claude outputs <promise>TASK_COMPLETE</promise>
+python -c "from src.ralph_wiggum import run_ralph_loop; from pathlib import Path; run_ralph_loop(Path('./vault'), 'Process all files in Needs_Action', max_iterations=10)"
+```
+
+Two strategies: **promise-based** (Claude declares completion) or **file-movement** (detects task moved to Done/).
+
+## CEO Briefing
+
+Weekly business audit — the "Monday Morning CEO Briefing":
+
+```bash
+python -c "from src.briefing import generate_briefing, save_briefing; from pathlib import Path; save_briefing(Path('./vault'), generate_briefing(Path('./vault')))"
+```
+
+Analyzes completed tasks, bottlenecks, activity stats, and generates proactive suggestions.
+
+## Error Recovery
+
+- **Exponential backoff** retry for transient errors (network, API rate limits)
+- **Quarantine queue** for failed actions (auto-restores after cooldown)
+- **Never auto-retry** payments or sensitive actions
+- Watchers continue collecting when Claude is unavailable
+
 ## Security
 
 - Credentials stored in `credentials/` (gitignored)
@@ -196,7 +229,7 @@ python -c "from src.scheduler import generate_cron_entry; print(generate_cron_en
 
 ## Tier Declaration
 
-**Silver Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, Agent Skills for all AI functionality, cron/Task Scheduler scheduling support.
+**Gold Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, 12 Agent Skills for all AI functionality, cron/Task Scheduler scheduling support, Ralph Wiggum loop for autonomous multi-step task completion, error recovery with exponential backoff and quarantine queue, Monday Morning CEO Briefing with activity analysis and proactive suggestions, comprehensive audit logging.
 
 ## License
 
