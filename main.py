@@ -44,7 +44,12 @@ def main():
         claude_model=cfg.claude_model,
         gmail_service=gmail_service,
         daily_send_limit=cfg.daily_send_limit,
+        auto_approve_threshold=cfg.auto_approve_threshold,
     )
+    if cfg.auto_approve_threshold < 1.0:
+        logger.info(f"Auto-approve enabled (threshold: {cfg.auto_approve_threshold})")
+    else:
+        logger.info("Auto-approve disabled (threshold: 1.0)")
     file_watcher = None
     if cfg.file_watch_enabled:
         file_watcher = FileWatcher(

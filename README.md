@@ -1,6 +1,6 @@
-# Digital FTE — Gold Tier
+# Digital FTE — Platinum Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with self-improving plans.
+> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with confidence-based auto-approve.
 
 An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault.
 
@@ -11,23 +11,27 @@ Gmail ──► Gmail Watcher ──► vault/Needs_Action/
                                     │
                             Orchestrator + Claude ◄── vault/Agent_Memory.md
                                     │
-                            vault/Pending_Approval/
-                                    │
-                              Human reviews
-                                 │      │
-                         Approved/   Rejected/
-                             │          │
-                       Gmail Reply   Claude reviews
-                             │          │
-                         Done/    learning → Agent_Memory.md
-                                       │
-                                     Done/
+                            confidence >= threshold?
+                               │           │
+                              YES          NO
+                               │           │
+                          Auto-execute   vault/Pending_Approval/
+                               │           │
+                               │      Human reviews
+                               │        │      │
+                               │  Approved/  Rejected/
+                               │      │          │
+                               │  Gmail Reply  Claude reviews
+                               │      │          │
+                             Done/  Done/   learning → Agent_Memory.md
+                                                 │
+                                               Done/
 ```
 
 **Four layers:**
 1. **Perception** — Gmail Watcher polls for new emails
 2. **Reasoning** — Claude Code analyzes emails and generates plans
-3. **Action** — Approved plans are executed; rejected plans generate learnings
+3. **Action** — High-confidence plans auto-execute; others require approval; rejected plans generate learnings
 4. **Memory** — Obsidian vault stores everything as markdown
 
 ## Prerequisites
@@ -76,11 +80,12 @@ python main.py
 The agent will:
 1. Poll Gmail every 60 seconds (configurable)
 2. Create action files in `vault/Needs_Action/`
-3. Process them with Claude, drafting reply text in `vault/Pending_Approval/`
-4. Wait for you to review — edit the reply if needed, then move to `vault/Approved/`
-5. **Send email replies** for approved plans that include a reply draft
-6. Archive to `vault/Done/`
-7. **Learn from rejections** — analyze rejected plans and store learnings in Agent Memory
+3. Process them with Claude, which includes a confidence score in each plan
+4. **Auto-approve high-confidence plans** (confidence >= threshold) and execute immediately
+5. Route lower-confidence plans to `vault/Pending_Approval/` for human review
+6. **Send email replies** for approved plans that include a reply draft
+7. Archive to `vault/Done/`
+8. **Learn from rejections** — analyze rejected plans and store learnings in Agent Memory
 
 Open the `vault/` folder in Obsidian to see your dashboard.
 
@@ -96,6 +101,7 @@ Edit `.env` to customize:
 | `CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` | Claude model for analysis |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `DAILY_SEND_LIMIT` | `20` | Max emails sent per day |
+| `AUTO_APPROVE_THRESHOLD` | `1.0` | Confidence threshold for auto-approve (1.0 = disabled) |
 
 ## Vault Structure
 
@@ -116,13 +122,13 @@ vault/
 
 - Credentials stored in `credentials/` (gitignored)
 - All secrets in `.env` (gitignored)
-- Human-in-the-loop: all email replies require approval before sending
+- Human-in-the-loop: email replies require approval unless auto-approve is enabled
 - Daily send limit (default: 20) prevents runaway sends
 - Activity logged to `vault/Logs/`
 
 ## Tier Declaration
 
-**Gold Tier** — Gmail watcher with reply sending, file watcher, self-review loops that learn from rejected plans, Obsidian vault with approval pipeline.
+**Platinum Tier** — Gmail watcher with reply sending, file watcher, self-review loops, confidence-based auto-approve for high-confidence plans, Obsidian vault with approval pipeline.
 
 ## License
 

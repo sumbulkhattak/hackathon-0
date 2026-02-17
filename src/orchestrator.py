@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.gmail_sender import send_reply, check_send_limit, increment_send_count
-from src.utils import log_action, parse_frontmatter, extract_reply_block
+from src.utils import log_action, parse_frontmatter, extract_reply_block, extract_confidence
 
 logger = logging.getLogger("digital_fte.orchestrator")
 
@@ -50,6 +50,9 @@ class Orchestrator:
         metadata = parse_frontmatter(action_file)
         claude_response = self._invoke_claude(action_content, handbook)
 
+        # Parse confidence score
+        confidence = extract_confidence(claude_response)
+
         now = datetime.now(timezone.utc).isoformat()
         plan_name = action_file.name.replace("email-", "plan-")
 
@@ -58,6 +61,7 @@ class Orchestrator:
             f"source: {action_file.name}",
             f"created: {now}",
             "status: pending_approval",
+            f"confidence: {confidence}",
         ]
         if "---BEGIN REPLY---" in claude_response:
             fm_lines.append("action: reply")
@@ -77,18 +81,57 @@ class Orchestrator:
 
 {claude_response}
 """
-        plan_path = self.pending_approval / plan_name
-        plan_path.write_text(plan_content, encoding="utf-8")
-        action_file.unlink()
-        log_action(
-            logs_dir=self.logs,
-            actor="orchestrator",
-            action="plan_created",
-            source=action_file.name,
-            result=f"pending_approval:{plan_name}",
-        )
-        logger.info(f"Plan created: {plan_path.name} (awaiting approval)")
-        return plan_path
+        # Check if auto-approve is possible
+        can_auto_approve = confidence >= self.auto_approve_threshold
+
+        if can_auto_approve and "---BEGIN REPLY---" in claude_response:
+            # Reply action — check send limit before auto-approving
+            if not check_send_limit(self.logs, self.daily_send_limit):
+                can_auto_approve = False
+
+        if can_auto_approve:
+            # Auto-approve: write to Approved/, execute, move to Done/
+            approved_path = self.approved / plan_name
+            approved_path.write_text(plan_content, encoding="utf-8")
+            action_file.unlink()
+            log_action(
+                logs_dir=self.logs,
+                actor="orchestrator",
+                action="auto_approved",
+                source=action_file.name,
+                result=f"confidence:{confidence}",
+            )
+            logger.info(f"Auto-approved (confidence={confidence}): {plan_name}")
+            result = self.execute_approved(approved_path)
+            # If execute_approved returned a file still in Approved/, send failed
+            if result.parent == self.approved:
+                # Move to Pending_Approval for human review
+                fallback_path = self.pending_approval / plan_name
+                shutil.move(str(result), str(fallback_path))
+                log_action(
+                    logs_dir=self.logs,
+                    actor="orchestrator",
+                    action="auto_approve_fallback",
+                    source=plan_name,
+                    result="send_failed_moved_to_pending",
+                )
+                logger.warning(f"Auto-approve send failed, moved to Pending_Approval: {plan_name}")
+                return fallback_path
+            return result
+        else:
+            # Normal flow: write to Pending_Approval/
+            plan_path = self.pending_approval / plan_name
+            plan_path.write_text(plan_content, encoding="utf-8")
+            action_file.unlink()
+            log_action(
+                logs_dir=self.logs,
+                actor="orchestrator",
+                action="plan_created",
+                source=action_file.name,
+                result=f"pending_approval:{plan_name}",
+            )
+            logger.info(f"Plan created: {plan_path.name} (awaiting approval)")
+            return plan_path
 
     def execute_approved(self, approved_file: Path) -> Path:
         logger.info(f"Executing approved action: {approved_file.name}")
