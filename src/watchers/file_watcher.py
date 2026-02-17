@@ -4,20 +4,24 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.extractors import extract_pdf_text, extract_image_description
 from src.utils import log_action, slugify
 from src.watchers.base_watcher import BaseWatcher
 
 logger = logging.getLogger("digital_fte.file_watcher")
 
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}
 
 
 class FileWatcher(BaseWatcher):
-    def __init__(self, vault_path: Path, check_interval: int = 30, dry_run: bool = False):
+    def __init__(self, vault_path: Path, check_interval: int = 30, dry_run: bool = False,
+                 claude_model: str = "claude-sonnet-4-5-20250929"):
         super().__init__(vault_path, check_interval)
         self.incoming_dir = vault_path / "Incoming_Files"
         self.incoming_dir.mkdir(parents=True, exist_ok=True)
         self.dry_run = dry_run
+        self.claude_model = claude_model
         self._processed: set[str] = set()
 
     def check_for_updates(self) -> list[dict]:
@@ -53,15 +57,30 @@ class FileWatcher(BaseWatcher):
         return items
 
     def create_action_file(self, item: dict) -> Path:
-        """Generate a markdown task file in Needs_Action."""
+        """Generate a markdown task file in Needs_Action with extracted content."""
         if self.dry_run:
             logger.info(f"DRY-RUN: Would create action file for {item['filename']}")
             self._processed.add(item["filename"])
             return item["path"]
 
+        # Extract content based on file type
+        extracted_text = ""
+        ext = item["extension"]
+        if ext == ".pdf":
+            extracted_text = extract_pdf_text(item["path"])
+        elif ext in IMAGE_EXTENSIONS:
+            extracted_text = extract_image_description(item["path"], self.claude_model)
+
+        has_content = bool(extracted_text.strip())
+
         slug = slugify(item["filename"])[:50] or "file"
         filename = f"file-{slug}.md"
         path = self.needs_action_dir / filename
+
+        if has_content:
+            summary_section = f"## Extracted Content\n{extracted_text}"
+        else:
+            summary_section = "## Summary\nPending analysis — file content extraction not yet available. Review manually."
 
         content = f"""---
 type: file
@@ -69,6 +88,7 @@ filename: {item['filename']}
 extension: {item['extension']}
 detected_at: {item['detected_at']}
 size_bytes: {item['size_bytes']}
+extracted: {str(has_content).lower()}
 priority: normal
 ---
 
@@ -79,8 +99,7 @@ priority: normal
 **Detected:** {item['detected_at']}
 **Size:** {item['size_bytes']} bytes
 
-## Summary
-Pending analysis — file content extraction not yet available. Review manually.
+{summary_section}
 
 ## Suggested Actions
 - [ ] Review file contents
@@ -89,7 +108,7 @@ Pending analysis — file content extraction not yet available. Review manually.
 - [ ] Archive
 """
         path.write_text(content, encoding="utf-8")
-        logger.info(f"Created action file: {path.name} for {item['filename']}")
+        logger.info(f"Created action file: {path.name} for {item['filename']} (extracted={has_content})")
 
         # Move original file out of Incoming_Files to prevent reprocessing
         processed_dir = self.vault_path / "Incoming_Files" / ".processed"
