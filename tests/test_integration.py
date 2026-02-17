@@ -129,6 +129,81 @@ def test_full_reply_pipeline(tmp_path):
     service.users().messages().send.assert_called_once()
 
 
+def test_auto_approve_pipeline(tmp_path):
+    """End-to-end: email -> plan -> auto-approve (high confidence) -> reply sent -> Done."""
+    from setup_vault import setup_vault
+    from src.watchers.gmail_watcher import GmailWatcher
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    service = MagicMock()
+    service.users().messages().list.return_value.execute.return_value = {
+        "messages": [{"id": "msg_auto_e2e", "threadId": "t_auto"}]
+    }
+    service.users().messages().get.return_value.execute.return_value = {
+        "id": "msg_auto_e2e",
+        "threadId": "t_auto",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "colleague@example.com"},
+                {"name": "Subject", "value": "Quick Question"},
+                {"name": "Date", "value": "2026-02-16"},
+                {"name": "Message-ID", "value": "<q1@example.com>"},
+            ],
+            "body": {"data": "V2hhdCB0aW1lIGlzIHRoZSBtZWV0aW5nPw=="},
+        },
+        "labelIds": ["INBOX"],
+    }
+    service.users().labels().list.return_value.execute.return_value = {
+        "labels": [{"id": "L1", "name": "Processed-by-FTE"}]
+    }
+    service.users().messages().send.return_value.execute.return_value = {
+        "id": "sent_auto_e2e", "threadId": "t_auto",
+    }
+
+    # Step 1: Watcher detects email
+    watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
+    count = watcher.run_once()
+    assert count == 1
+    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    assert len(action_files) == 1
+
+    # Step 2: Orchestrator processes with high confidence — auto-approves
+    orch = Orchestrator(
+        vault_path=tmp_path, gmail_service=service,
+        daily_send_limit=20, auto_approve_threshold=0.8,
+    )
+    claude_response = (
+        "## Analysis\nSimple question about meeting time.\n\n"
+        "## Recommended Actions\n1. Reply with meeting time\n\n"
+        "## Requires Approval\n- [ ] Send reply\n\n"
+        "## Reply Draft\n"
+        "---BEGIN REPLY---\n"
+        "Hi,\n\nThe meeting is at 3pm.\n\nBest\n"
+        "---END REPLY---\n\n"
+        "## Confidence\n0.95"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_files[0])
+
+    # Should go directly to Done/ (no human review needed)
+    assert result_path.parent.name == "Done"
+    assert len(list((tmp_path / "Pending_Approval").glob("*.md"))) == 0
+    assert len(list((tmp_path / "Approved").glob("*.md"))) == 0
+    service.users().messages().send.assert_called_once()
+
+    # Verify auto_approved log entry exists
+    import json
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    log_file = tmp_path / "Logs" / f"{today}.json"
+    entries = json.loads(log_file.read_text())
+    auto_entries = [e for e in entries if e["action"] == "auto_approved"]
+    assert len(auto_entries) >= 1
+
+
 def test_rejection_feedback_loop(tmp_path):
     """End-to-end: email -> plan -> reject -> learning added to Agent Memory."""
     from setup_vault import setup_vault

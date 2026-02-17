@@ -15,6 +15,7 @@ class Config:
     daily_send_limit: int
     file_watch_enabled: bool
     file_watch_dry_run: bool
+    auto_approve_threshold: float
 
 
 def load_config() -> Config:
@@ -29,4 +30,5 @@ def load_config() -> Config:
         daily_send_limit=int(os.getenv("DAILY_SEND_LIMIT", "20")),
         file_watch_enabled=os.getenv("FILE_WATCH_ENABLED", "false").lower() == "true",
         file_watch_dry_run=os.getenv("FILE_WATCH_DRY_RUN", "false").lower() == "true",
+        auto_approve_threshold=float(os.getenv("AUTO_APPROVE_THRESHOLD", "1.0")),
     )

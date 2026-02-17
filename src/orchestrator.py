@@ -6,18 +6,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.gmail_sender import send_reply, check_send_limit, increment_send_count
-from src.utils import log_action, parse_frontmatter, extract_reply_block
+from src.utils import log_action, parse_frontmatter, extract_reply_block, extract_confidence
 
 logger = logging.getLogger("digital_fte.orchestrator")
 
 
 class Orchestrator:
     def __init__(self, vault_path: Path, claude_model: str = "claude-sonnet-4-5-20250929",
-                 gmail_service=None, daily_send_limit: int = 20):
+                 gmail_service=None, daily_send_limit: int = 20,
+                 auto_approve_threshold: float = 1.0):
         self.vault_path = vault_path
         self.claude_model = claude_model
         self.gmail_service = gmail_service
         self.daily_send_limit = daily_send_limit
+        self.auto_approve_threshold = auto_approve_threshold
         self.needs_action = vault_path / "Needs_Action"
         self.plans = vault_path / "Plans"
         self.pending_approval = vault_path / "Pending_Approval"
@@ -48,6 +50,9 @@ class Orchestrator:
         metadata = parse_frontmatter(action_file)
         claude_response = self._invoke_claude(action_content, handbook)
 
+        # Parse confidence score
+        confidence = extract_confidence(claude_response)
+
         now = datetime.now(timezone.utc).isoformat()
         plan_name = action_file.name.replace("email-", "plan-")
 
@@ -56,6 +61,7 @@ class Orchestrator:
             f"source: {action_file.name}",
             f"created: {now}",
             "status: pending_approval",
+            f"confidence: {confidence}",
         ]
         if "---BEGIN REPLY---" in claude_response:
             fm_lines.append("action: reply")
@@ -75,18 +81,57 @@ class Orchestrator:
 
 {claude_response}
 """
-        plan_path = self.pending_approval / plan_name
-        plan_path.write_text(plan_content, encoding="utf-8")
-        action_file.unlink()
-        log_action(
-            logs_dir=self.logs,
-            actor="orchestrator",
-            action="plan_created",
-            source=action_file.name,
-            result=f"pending_approval:{plan_name}",
-        )
-        logger.info(f"Plan created: {plan_path.name} (awaiting approval)")
-        return plan_path
+        # Check if auto-approve is possible
+        can_auto_approve = confidence >= self.auto_approve_threshold
+
+        if can_auto_approve and "---BEGIN REPLY---" in claude_response:
+            # Reply action — check send limit before auto-approving
+            if not check_send_limit(self.logs, self.daily_send_limit):
+                can_auto_approve = False
+
+        if can_auto_approve:
+            # Auto-approve: write to Approved/, execute, move to Done/
+            approved_path = self.approved / plan_name
+            approved_path.write_text(plan_content, encoding="utf-8")
+            action_file.unlink()
+            log_action(
+                logs_dir=self.logs,
+                actor="orchestrator",
+                action="auto_approved",
+                source=action_file.name,
+                result=f"confidence:{confidence}",
+            )
+            logger.info(f"Auto-approved (confidence={confidence}): {plan_name}")
+            result = self.execute_approved(approved_path)
+            # If execute_approved returned a file still in Approved/, send failed
+            if result.parent == self.approved:
+                # Move to Pending_Approval for human review
+                fallback_path = self.pending_approval / plan_name
+                shutil.move(str(result), str(fallback_path))
+                log_action(
+                    logs_dir=self.logs,
+                    actor="orchestrator",
+                    action="auto_approve_fallback",
+                    source=plan_name,
+                    result="send_failed_moved_to_pending",
+                )
+                logger.warning(f"Auto-approve send failed, moved to Pending_Approval: {plan_name}")
+                return fallback_path
+            return result
+        else:
+            # Normal flow: write to Pending_Approval/
+            plan_path = self.pending_approval / plan_name
+            plan_path.write_text(plan_content, encoding="utf-8")
+            action_file.unlink()
+            log_action(
+                logs_dir=self.logs,
+                actor="orchestrator",
+                action="plan_created",
+                source=action_file.name,
+                result=f"pending_approval:{plan_name}",
+            )
+            logger.info(f"Plan created: {plan_path.name} (awaiting approval)")
+            return plan_path
 
     def execute_approved(self, approved_file: Path) -> Path:
         logger.info(f"Executing approved action: {approved_file.name}")
@@ -250,6 +295,7 @@ Respond with ONLY the learning text, no markdown headers or formatting.
 4. Identify which actions require human approval
 5. If a reply email is appropriate, draft the full reply text
 6. Apply any relevant learnings from Agent Memory
+7. Rate your confidence that this plan requires no human edits (0.0 to 1.0)
 
 Respond with:
 ## Analysis
@@ -268,6 +314,9 @@ If a reply is needed, include the reply text between these exact markers:
 ---END REPLY---
 
 If no reply is needed, omit the Reply Draft section entirely.
+
+## Confidence
+[0.0 to 1.0 — how confident you are this plan needs no human edits]
 """
         try:
             result = subprocess.run(

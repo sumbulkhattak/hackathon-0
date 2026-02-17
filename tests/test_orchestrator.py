@@ -229,6 +229,202 @@ def test_review_rejected_creates_memory_if_missing(vault):
     assert "A useful learning." in content
 
 
+def test_orchestrator_stores_auto_approve_threshold(vault):
+    """Orchestrator should accept and store auto_approve_threshold."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, auto_approve_threshold=0.85)
+    assert orch.auto_approve_threshold == 0.85
+
+
+def test_orchestrator_auto_approve_threshold_default(vault):
+    """Orchestrator should default auto_approve_threshold to 1.0."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    assert orch.auto_approve_threshold == 1.0
+
+
+def test_invoke_claude_prompt_requests_confidence(vault):
+    """_invoke_claude prompt should ask Claude for a ## Confidence section."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="## Analysis\nTest.")
+        orch._invoke_claude("Test action", "Test handbook")
+        call_args = mock_run.call_args[0][0]
+        prompt = call_args[-1]
+        assert "## Confidence" in prompt
+        assert "0.0 to 1.0" in prompt
+
+
+def test_process_action_auto_approves_high_confidence(vault):
+    """process_action should auto-approve and execute when confidence >= threshold."""
+    from src.orchestrator import Orchestrator
+    mock_gmail = MagicMock()
+    mock_gmail.users().messages().get.return_value.execute.return_value = {
+        "id": "msg_auto1", "threadId": "t1",
+        "payload": {"headers": [{"name": "Message-ID", "value": "<orig@test.com>"}]},
+    }
+    mock_gmail.users().messages().send.return_value.execute.return_value = {
+        "id": "sent_auto1", "threadId": "t1",
+    }
+    orch = Orchestrator(
+        vault_path=vault, gmail_service=mock_gmail,
+        auto_approve_threshold=0.8,
+    )
+    action_file = vault / "Needs_Action" / "email-auto-test.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hello\ngmail_id: msg_auto1\n---\n# Test\n\n## Body\nHi there"
+    )
+    claude_response = (
+        "## Analysis\nSimple greeting.\n\n"
+        "## Recommended Actions\n1. Reply with acknowledgment\n\n"
+        "## Requires Approval\n- [ ] Send reply\n\n"
+        "## Reply Draft\n"
+        "---BEGIN REPLY---\nHi Bob,\n\nThanks for reaching out!\n\nBest\n---END REPLY---\n\n"
+        "## Confidence\n0.92"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    # Should end up in Done/, not Pending_Approval/
+    assert result_path.parent.name == "Done"
+    assert not action_file.exists()
+    assert len(list((vault / "Pending_Approval").glob("*.md"))) == 0
+    mock_gmail.users().messages().send.assert_called_once()
+
+
+def test_process_action_routes_to_pending_below_threshold(vault):
+    """process_action should route to Pending_Approval when confidence < threshold."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, auto_approve_threshold=0.9)
+    action_file = vault / "Needs_Action" / "email-low-conf.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hello\n---\n# Test\n\n## Body\nHi"
+    )
+    claude_response = (
+        "## Analysis\nNeeds review.\n\n"
+        "## Recommended Actions\n1. Reply\n\n"
+        "## Requires Approval\n- [ ] Send reply\n\n"
+        "## Confidence\n0.65"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    assert result_path.parent.name == "Pending_Approval"
+
+
+def test_auto_approve_disabled_by_default(vault):
+    """Default threshold 1.0 should never auto-approve (nothing scores > 1.0)."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    action_file = vault / "Needs_Action" / "email-default.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hi\n---\n# Test"
+    )
+    claude_response = (
+        "## Analysis\nSimple.\n\n"
+        "## Confidence\n0.99"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    # threshold=1.0, confidence=0.99 → still goes to Pending_Approval
+    assert result_path.parent.name == "Pending_Approval"
+
+
+def test_auto_approve_respects_send_limit(vault):
+    """Auto-approve should route to Pending_Approval when daily send limit is hit."""
+    from src.orchestrator import Orchestrator
+    mock_gmail = MagicMock()
+    orch = Orchestrator(
+        vault_path=vault, gmail_service=mock_gmail,
+        daily_send_limit=0, auto_approve_threshold=0.5,
+    )
+    action_file = vault / "Needs_Action" / "email-limit.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hi\ngmail_id: msg1\n---\n# Test"
+    )
+    claude_response = (
+        "## Analysis\nSimple.\n\n"
+        "## Reply Draft\n---BEGIN REPLY---\nHi\n---END REPLY---\n\n"
+        "## Confidence\n0.95"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    # Send limit hit → falls back to Pending_Approval
+    assert result_path.parent.name == "Pending_Approval"
+    mock_gmail.users().messages().send.assert_not_called()
+
+
+def test_auto_approve_logs_action(vault):
+    """Auto-approve should log with action 'auto_approved' and include confidence."""
+    import json
+    from datetime import datetime, timezone
+    from src.orchestrator import Orchestrator
+    mock_gmail = MagicMock()
+    mock_gmail.users().messages().get.return_value.execute.return_value = {
+        "id": "msg_log1", "threadId": "t1",
+        "payload": {"headers": [{"name": "Message-ID", "value": "<x@test.com>"}]},
+    }
+    mock_gmail.users().messages().send.return_value.execute.return_value = {
+        "id": "sent_log1", "threadId": "t1",
+    }
+    orch = Orchestrator(
+        vault_path=vault, gmail_service=mock_gmail,
+        auto_approve_threshold=0.8,
+    )
+    action_file = vault / "Needs_Action" / "email-log-test.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: alice@test.com\nsubject: Test\ngmail_id: msg_log1\n---\n# Test"
+    )
+    claude_response = (
+        "## Analysis\nSimple.\n\n"
+        "## Reply Draft\n---BEGIN REPLY---\nHi\n---END REPLY---\n\n"
+        "## Confidence\n0.90"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        orch.process_action(action_file)
+    # Check logs for auto_approved entry
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    log_file = vault / "Logs" / f"{today}.json"
+    assert log_file.exists()
+    entries = json.loads(log_file.read_text())
+    auto_entries = [e for e in entries if e["action"] == "auto_approved"]
+    assert len(auto_entries) >= 1
+    assert "confidence:0.9" in auto_entries[0]["result"]
+
+
+def test_auto_approve_failed_send_falls_back(vault):
+    """Auto-approve should move plan to Pending_Approval if send fails."""
+    from src.orchestrator import Orchestrator
+    mock_gmail = MagicMock()
+    mock_gmail.users().messages().get.return_value.execute.return_value = {
+        "id": "msg_fail1", "threadId": "t1",
+        "payload": {"headers": [{"name": "Message-ID", "value": "<x@test.com>"}]},
+    }
+    mock_gmail.users().messages().send.return_value.execute.side_effect = Exception("API error")
+    orch = Orchestrator(
+        vault_path=vault, gmail_service=mock_gmail,
+        auto_approve_threshold=0.5,
+    )
+    action_file = vault / "Needs_Action" / "email-fail-test.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hi\ngmail_id: msg_fail1\n---\n# Test"
+    )
+    claude_response = (
+        "## Analysis\nSimple.\n\n"
+        "## Reply Draft\n---BEGIN REPLY---\nHi\n---END REPLY---\n\n"
+        "## Confidence\n0.95"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    # Failed send → plan should be in Pending_Approval for human review
+    assert result_path.parent.name == "Pending_Approval"
+
+
 def test_invoke_claude_includes_agent_memory(vault):
     """_invoke_claude should include Agent_Memory.md content in the prompt."""
     from src.orchestrator import Orchestrator
