@@ -62,3 +62,37 @@ def test_classify_normal_when_vip_list_none():
         sender="ceo@company.com", vip_senders=None,
     )
     assert result == "normal"
+
+
+def test_classify_low_on_noreply_sender():
+    """Emails from noreply addresses should be low priority."""
+    result = classify_priority(subject="Your receipt", body="", sender="noreply@store.com")
+    assert result == "low"
+
+
+def test_classify_low_on_newsletter_sender():
+    """Emails from newsletter addresses should be low priority."""
+    result = classify_priority(subject="Weekly digest", body="", sender="newsletter@blog.com")
+    assert result == "low"
+
+
+def test_classify_low_on_notifications_sender():
+    """Emails from notifications addresses should be low priority."""
+    result = classify_priority(subject="New activity", body="", sender="notifications@github.com")
+    assert result == "low"
+
+
+def test_classify_low_is_case_insensitive():
+    """Newsletter pattern detection should be case-insensitive."""
+    result = classify_priority(subject="Receipt", body="", sender="NoReply@Store.com")
+    assert result == "low"
+
+
+def test_vip_takes_precedence_over_newsletter():
+    """VIP sender should be high even if sender matches newsletter pattern."""
+    result = classify_priority(
+        subject="Important", body="",
+        sender="noreply@vip-company.com",
+        vip_senders=["noreply@vip-company.com"],
+    )
+    assert result == "high"

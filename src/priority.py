@@ -5,6 +5,8 @@ logger = logging.getLogger("digital_fte.priority")
 
 URGENCY_KEYWORDS = ["urgent", "asap", "deadline", "overdue"]
 
+NEWSLETTER_PATTERNS = ["noreply@", "no-reply@", "newsletter@", "notifications@", "mailer-daemon@"]
+
 
 def classify_priority(
     subject: str = "",
@@ -28,10 +30,15 @@ def classify_priority(
             return "high"
 
     # Check VIP senders
+    sender_lower = sender.lower()
     if vip_senders:
-        sender_lower = sender.lower()
         for vip in vip_senders:
             if vip.lower() == sender_lower:
                 return "high"
+
+    # Check newsletter/notification patterns
+    for pattern in NEWSLETTER_PATTERNS:
+        if pattern in sender_lower:
+            return "low"
 
     return "normal"
