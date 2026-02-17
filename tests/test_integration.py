@@ -204,6 +204,53 @@ def test_auto_approve_pipeline(tmp_path):
     assert len(auto_entries) >= 1
 
 
+def test_file_extraction_pipeline(tmp_path):
+    """End-to-end: PDF dropped -> extracted -> action file with content -> orchestrator processes."""
+    from setup_vault import setup_vault
+    from src.watchers.file_watcher import FileWatcher
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    # Create a real PDF with pymupdf
+    import pymupdf
+    pdf_path = tmp_path / "Incoming_Files" / "invoice-2026.pdf"
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Invoice #2026-001\nAmount: $1,500.00\nDue: 2026-03-15")
+    doc.save(str(pdf_path))
+    doc.close()
+
+    # Step 1: FileWatcher detects and extracts
+    watcher = FileWatcher(vault_path=tmp_path)
+    count = watcher.run_once()
+    assert count == 1
+    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    assert len(action_files) == 1
+
+    # Verify extraction happened
+    content = action_files[0].read_text()
+    assert "## Extracted Content" in content
+    assert "Invoice #2026-001" in content
+    assert "$1,500.00" in content
+    assert "extracted: true" in content
+
+    # Step 2: Orchestrator processes the extracted file
+    orch = Orchestrator(vault_path=tmp_path)
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = (
+            "## Analysis\nInvoice for $1,500 due 2026-03-15.\n\n"
+            "## Recommended Actions\n1. Schedule payment\n2. File invoice\n\n"
+            "## Requires Approval\n- [ ] Schedule payment\n\n"
+            "## Confidence\n0.7"
+        )
+        plan_path = orch.process_action(action_files[0])
+
+    assert plan_path.parent.name == "Pending_Approval"
+    plan_content = plan_path.read_text()
+    assert "Invoice" in plan_content
+
+
 def test_rejection_feedback_loop(tmp_path):
     """End-to-end: email -> plan -> reject -> learning added to Agent Memory."""
     from setup_vault import setup_vault
