@@ -31,7 +31,14 @@ class Orchestrator:
         self.memory_path = vault_path / "Agent_Memory.md"
 
     def get_pending_actions(self) -> list[Path]:
-        return sorted(self.needs_action.glob("*.md"))
+        priority_order = {"high": 0, "normal": 1, "low": 2}
+        files = list(self.needs_action.glob("*.md"))
+
+        def _priority_key(path: Path) -> int:
+            fm = parse_frontmatter(path)
+            return priority_order.get(fm.get("priority", "normal"), 1)
+
+        return sorted(files, key=_priority_key)
 
     def get_approved_actions(self) -> list[Path]:
         return sorted(self.approved.glob("*.md"))

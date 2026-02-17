@@ -1,18 +1,20 @@
-# Digital FTE — Diamond Tier
+# Digital FTE — Obsidian Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with document content extraction.
+> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with smart email prioritization.
 
 An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault.
 
 ## Architecture
 
 ```
-Gmail ──► Gmail Watcher ──► vault/Needs_Action/
+Gmail ──► Gmail Watcher ──► classify_priority() ──► vault/Needs_Action/
+                              (keywords / VIP / newsletter)    (tagged: high|normal|low)
                                        │
 Files ──► File Watcher ──► Extract ──┘
                (PDF text / image vision)
                                        │
                                Orchestrator + Claude ◄── vault/Agent_Memory.md
+                               (processes high-priority first)
                                        │
                                confidence >= threshold?
                                   │           │
@@ -32,7 +34,7 @@ Files ──► File Watcher ──► Extract ──┘
 ```
 
 **Four layers:**
-1. **Perception** — Gmail Watcher polls for new emails; File Watcher extracts content from PDFs and images
+1. **Perception** — Gmail Watcher polls for new emails and classifies priority (high/normal/low); File Watcher extracts content from PDFs and images
 2. **Reasoning** — Claude Code analyzes emails and generates plans
 3. **Action** — High-confidence plans auto-execute; others require approval; rejected plans generate learnings
 4. **Memory** — Obsidian vault stores everything as markdown
@@ -82,14 +84,16 @@ python main.py
 
 The agent will:
 1. Poll Gmail every 60 seconds (configurable)
-2. Create action files in `vault/Needs_Action/`
-3. Detect files in `vault/Incoming_Files/`, extract text (PDFs) or descriptions (images), create enriched action files
-4. Process them with Claude, which includes a confidence score in each plan
-4. **Auto-approve high-confidence plans** (confidence >= threshold) and execute immediately
-5. Route lower-confidence plans to `vault/Pending_Approval/` for human review
-6. **Send email replies** for approved plans that include a reply draft
-7. Archive to `vault/Done/`
-8. **Learn from rejections** — analyze rejected plans and store learnings in Agent Memory
+2. **Classify email priority** (high for urgent keywords/VIP senders, low for newsletters, normal otherwise)
+3. Create action files in `vault/Needs_Action/` with priority tags
+4. Detect files in `vault/Incoming_Files/`, extract text (PDFs) or descriptions (images), create enriched action files
+5. **Process high-priority items first**, then normal, then low
+6. Process them with Claude, which includes a confidence score in each plan
+7. **Auto-approve high-confidence plans** (confidence >= threshold) and execute immediately
+8. Route lower-confidence plans to `vault/Pending_Approval/` for human review
+9. **Send email replies** for approved plans that include a reply draft
+10. Archive to `vault/Done/`
+11. **Learn from rejections** — analyze rejected plans and store learnings in Agent Memory
 
 Open the `vault/` folder in Obsidian to see your dashboard.
 
@@ -106,6 +110,7 @@ Edit `.env` to customize:
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `DAILY_SEND_LIMIT` | `20` | Max emails sent per day |
 | `AUTO_APPROVE_THRESHOLD` | `1.0` | Confidence threshold for auto-approve (1.0 = disabled) |
+| `VIP_SENDERS` | *(empty)* | Comma-separated emails that always get high priority |
 
 ## Vault Structure
 
@@ -133,7 +138,7 @@ vault/
 
 ## Tier Declaration
 
-**Diamond Tier** — Gmail watcher with reply sending, file watcher with PDF text extraction and image vision, self-review loops, confidence-based auto-approve, Obsidian vault with approval pipeline.
+**Obsidian Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, self-review loops, confidence-based auto-approve, Obsidian vault with approval pipeline.
 
 ## License
 

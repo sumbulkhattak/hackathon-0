@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.priority import classify_priority
 from src.utils import log_action, slugify
 from src.watchers.base_watcher import BaseWatcher
 
@@ -12,10 +13,12 @@ PROCESSED_LABEL = "Processed-by-FTE"
 
 
 class GmailWatcher(BaseWatcher):
-    def __init__(self, vault_path: Path, gmail_service, gmail_filter: str = "is:unread", check_interval: int = 60):
+    def __init__(self, vault_path: Path, gmail_service, gmail_filter: str = "is:unread",
+                 check_interval: int = 60, vip_senders: list[str] | None = None):
         super().__init__(vault_path, check_interval)
         self.service = gmail_service
         self.gmail_filter = gmail_filter
+        self.vip_senders = vip_senders or []
         self._processed_label_id = None
 
     def check_for_updates(self) -> list:
@@ -40,12 +43,18 @@ class GmailWatcher(BaseWatcher):
         slug = slugify(item["subject"])[:50] or "no-subject"
         filename = f"email-{slug}-{item['id'][:8]}.md"
         path = self.needs_action_dir / filename
+        priority = classify_priority(
+            subject=item["subject"],
+            body=item["body"],
+            sender=item["from"],
+            vip_senders=self.vip_senders,
+        )
         content = f"""---
 type: email
 from: {item['from']}
 subject: {item['subject']}
 date: {item['date']}
-priority: normal
+priority: {priority}
 gmail_id: {item['id']}
 ---
 
@@ -53,6 +62,7 @@ gmail_id: {item['id']}
 
 **From:** {item['from']}
 **Date:** {item['date']}
+**Priority:** {priority}
 **Labels:** {', '.join(item.get('labels', []))}
 
 ## Body
@@ -64,13 +74,13 @@ gmail_id: {item['id']}
 - [ ] Archive
 """
         path.write_text(content, encoding="utf-8")
-        logger.info(f"Created action file: {path.name}")
+        logger.info(f"Created action file: {path.name} (priority={priority})")
         log_action(
             logs_dir=self.vault_path / "Logs",
             actor="gmail_watcher",
             action="email_detected",
             source=item["id"],
-            result=f"action_file_created:{filename}",
+            result=f"action_file_created:{filename}:priority={priority}",
         )
         self.mark_as_processed(item["id"])
         return path

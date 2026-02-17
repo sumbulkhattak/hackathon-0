@@ -62,3 +62,27 @@ def test_config_auto_approve_threshold_default(monkeypatch):
     from src.config import load_config
     cfg = load_config()
     assert cfg.auto_approve_threshold == 1.0
+
+
+def test_config_loads_vip_senders(monkeypatch):
+    """Config should parse VIP_SENDERS as a list of emails."""
+    monkeypatch.setenv("VIP_SENDERS", "ceo@co.com,client@big.com")
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.vip_senders == ["ceo@co.com", "client@big.com"]
+
+
+def test_config_vip_senders_default_empty(monkeypatch):
+    """Config should default vip_senders to empty list."""
+    monkeypatch.delenv("VIP_SENDERS", raising=False)
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.vip_senders == []
+
+
+def test_config_vip_senders_strips_whitespace(monkeypatch):
+    """Config should strip whitespace from VIP sender entries."""
+    monkeypatch.setenv("VIP_SENDERS", " ceo@co.com , client@big.com ")
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.vip_senders == ["ceo@co.com", "client@big.com"]

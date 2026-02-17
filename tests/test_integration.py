@@ -319,3 +319,82 @@ def test_rejection_feedback_loop(tmp_path):
     # Step 5: Verify learning was added to Agent Memory
     memory_content = (tmp_path / "Agent_Memory.md").read_text()
     assert "Don't use 'Dear Sir/Madam'" in memory_content
+
+
+def test_priority_processing_order(tmp_path):
+    """End-to-end: high-priority email should be processed before normal-priority."""
+    from setup_vault import setup_vault
+    from src.watchers.gmail_watcher import GmailWatcher
+    from src.orchestrator import Orchestrator
+
+    setup_vault(tmp_path)
+
+    service = MagicMock()
+    service.users().messages().list.return_value.execute.return_value = {
+        "messages": [
+            {"id": "msg_normal", "threadId": "t1"},
+            {"id": "msg_urgent", "threadId": "t2"},
+        ]
+    }
+
+    def get_message(userId, id, format):
+        mock = MagicMock()
+        if id == "msg_normal":
+            mock.execute.return_value = {
+                "id": "msg_normal",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "colleague@example.com"},
+                        {"name": "Subject", "value": "Weekly Report"},
+                        {"name": "Date", "value": "2026-02-17"},
+                    ],
+                    "body": {"data": "SGVyZSBpcyB0aGUgd2Vla2x5IHJlcG9ydA=="},
+                },
+                "labelIds": ["INBOX"],
+            }
+        else:
+            mock.execute.return_value = {
+                "id": "msg_urgent",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "boss@example.com"},
+                        {"name": "Subject", "value": "URGENT: Need response now"},
+                        {"name": "Date", "value": "2026-02-17"},
+                    ],
+                    "body": {"data": "UGxlYXNlIHJlc3BvbmQgQVNBUA=="},
+                },
+                "labelIds": ["INBOX"],
+            }
+        return mock
+
+    service.users().messages().get.side_effect = get_message
+    service.users().labels().list.return_value.execute.return_value = {
+        "labels": [{"id": "L1", "name": "Processed-by-FTE"}]
+    }
+
+    # Step 1: Watcher detects both emails
+    watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
+    count = watcher.run_once()
+    assert count == 2
+
+    # Step 2: Verify priority tags
+    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    assert len(action_files) == 2
+
+    high_found = False
+    normal_found = False
+    for f in action_files:
+        content = f.read_text()
+        if "priority: high" in content:
+            high_found = True
+        elif "priority: normal" in content:
+            normal_found = True
+
+    assert high_found, "Expected one high-priority action file"
+    assert normal_found, "Expected one normal-priority action file"
+
+    # Step 3: Orchestrator should process high-priority first
+    orch = Orchestrator(vault_path=tmp_path)
+    pending = orch.get_pending_actions()
+    first_file_content = pending[0].read_text()
+    assert "priority: high" in first_file_content

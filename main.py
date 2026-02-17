@@ -38,6 +38,7 @@ def main():
         gmail_service=gmail_service,
         gmail_filter=cfg.gmail_filter,
         check_interval=cfg.gmail_check_interval,
+        vip_senders=cfg.vip_senders,
     )
     orchestrator = Orchestrator(
         vault_path=cfg.vault_path,
