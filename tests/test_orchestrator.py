@@ -229,6 +229,20 @@ def test_review_rejected_creates_memory_if_missing(vault):
     assert "A useful learning." in content
 
 
+def test_orchestrator_stores_auto_approve_threshold(vault):
+    """Orchestrator should accept and store auto_approve_threshold."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, auto_approve_threshold=0.85)
+    assert orch.auto_approve_threshold == 0.85
+
+
+def test_orchestrator_auto_approve_threshold_default(vault):
+    """Orchestrator should default auto_approve_threshold to 1.0."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    assert orch.auto_approve_threshold == 1.0
+
+
 def test_invoke_claude_prompt_requests_confidence(vault):
     """_invoke_claude prompt should ask Claude for a ## Confidence section."""
     from src.orchestrator import Orchestrator

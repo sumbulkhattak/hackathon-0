@@ -13,11 +13,13 @@ logger = logging.getLogger("digital_fte.orchestrator")
 
 class Orchestrator:
     def __init__(self, vault_path: Path, claude_model: str = "claude-sonnet-4-5-20250929",
-                 gmail_service=None, daily_send_limit: int = 20):
+                 gmail_service=None, daily_send_limit: int = 20,
+                 auto_approve_threshold: float = 1.0):
         self.vault_path = vault_path
         self.claude_model = claude_model
         self.gmail_service = gmail_service
         self.daily_send_limit = daily_send_limit
+        self.auto_approve_threshold = auto_approve_threshold
         self.needs_action = vault_path / "Needs_Action"
         self.plans = vault_path / "Plans"
         self.pending_approval = vault_path / "Pending_Approval"
