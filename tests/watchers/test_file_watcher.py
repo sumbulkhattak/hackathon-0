@@ -1,7 +1,7 @@
 """Tests for the file system watcher."""
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -161,3 +161,17 @@ def test_run_once_moves_processed_files(watcher, vault):
     src_file = _drop_file(vault, "report.pdf")
     watcher.run_once()
     assert not src_file.exists()
+
+
+# --- claude_model parameter ---
+
+def test_file_watcher_accepts_claude_model(vault):
+    """FileWatcher should accept and store claude_model parameter."""
+    watcher = FileWatcher(vault_path=vault, claude_model="claude-opus-4-6")
+    assert watcher.claude_model == "claude-opus-4-6"
+
+
+def test_file_watcher_claude_model_default(vault):
+    """FileWatcher should default claude_model to claude-sonnet-4-5-20250929."""
+    watcher = FileWatcher(vault_path=vault)
+    assert watcher.claude_model == "claude-sonnet-4-5-20250929"

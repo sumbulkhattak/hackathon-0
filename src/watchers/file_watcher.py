@@ -13,11 +13,13 @@ SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff"
 
 
 class FileWatcher(BaseWatcher):
-    def __init__(self, vault_path: Path, check_interval: int = 30, dry_run: bool = False):
+    def __init__(self, vault_path: Path, check_interval: int = 30, dry_run: bool = False,
+                 claude_model: str = "claude-sonnet-4-5-20250929"):
         super().__init__(vault_path, check_interval)
         self.incoming_dir = vault_path / "Incoming_Files"
         self.incoming_dir.mkdir(parents=True, exist_ok=True)
         self.dry_run = dry_run
+        self.claude_model = claude_model
         self._processed: set[str] = set()
 
     def check_for_updates(self) -> list[dict]:
