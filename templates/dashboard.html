@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}AI Employee Dashboard{% endblock %}
+{% block content %}
+    <div class="header">
+        <div class="header-title">
+            <h1>AI Employee Dashboard</h1>
+            <span class="status-badge" style="background: {{ status_color }}20; color: {{ status_color }}">
+                <span class="status-dot" style="background: {{ status_color }}"></span>
+                {{ status }}
+            </span>
+        </div>
+        <div class="timestamp">Items to process: {{ total_active }}</div>
+    </div>
+
+    <div class="summary-strip">
+        <div class="summary-card">
+            <h2>Needs Action</h2>
+            <div class="summary-count">{{ summary.needs_action }}</div>
+        </div>
+        <div class="summary-card">
+            <h2>Plans</h2>
+            <div class="summary-count">{{ summary.plans }}</div>
+        </div>
+        <div class="summary-card">
+            <h2>Completed</h2>
+            <div class="summary-count">{{ summary.completed }}</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-header"><h2>Vault Overview</h2></div>
+            <div class="folder-grid">
+                {% for fc in folder_counts %}
+                <div class="folder-item">
+                    <div class="folder-count" style="color: {{ 'var(--accent)' if fc.count > 0 else 'var(--text-muted)' }}">{{ fc.count }}</div>
+                    <div class="folder-name">{{ fc.name }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2>Pending Approvals</h2></div>
+            {% if approvals %}
+                {% for a in approvals %}
+                <div class="approval-item">
+                    <div class="approval-info">
+                        <div class="approval-name">{{ a.name }}{% if a.domain %} <span style="color:var(--accent);font-size:0.7rem">[{{ a.domain }}]</span>{% endif %}</div>
+                        <div class="approval-meta">
+                            Source: {{ a.source }} | Confidence: {{ a.confidence }} | Action: {{ a.action }}
+                        </div>
+                    </div>
+                    <div class="approval-actions">
+                        <a href="/view/Pending_Approval/{{ a.rel_path }}" class="btn btn-view">View</a>
+                        <form method="post" action="/approve/{{ a.rel_path }}" style="display:inline">
+                            <button class="btn btn-approve" type="submit">Approve</button>
+                        </form>
+                        <form method="post" action="/reject/{{ a.rel_path }}" style="display:inline">
+                            <button class="btn btn-reject" type="submit">Reject</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No pending approvals</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-header"><h2>Needs Action</h2></div>
+            {% if needs_action %}
+                {% for item in needs_action %}
+                <div class="needs-action-item">
+                    <div>
+                        <span class="priority-{{ item.priority }}" style="font-weight:700">●</span>
+                        <a href="/view/Needs_Action/{{ item.name }}" style="color:var(--text);text-decoration:none">{{ item.subject }}</a>
+                    </div>
+                    <span class="timestamp">{{ item.type }}{% if item.domain %} [{{ item.domain }}]{% endif %} | {{ item.priority }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No action items</div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2>Recent Activity</h2></div>
+            {% if activity %}
+                {% for entry in activity %}
+                <div class="activity-item">
+                    <span class="activity-time">{{ entry.timestamp[:16]|replace("T", " ") if entry.timestamp|length >= 16 else entry.timestamp }}</span>
+                    <span class="activity-action">{{ entry.action }}</span>
+                    <span>{{ entry.source }} → {{ entry.result }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">No recent activity</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 2rem">
+        <div class="card-header"><h2>Completed (Recent)</h2></div>
+        {% if done_items %}
+            {% for item in done_items %}
+            <div class="needs-action-item">
+                <a href="/view/Done/{{ item.name }}" style="color:var(--text);text-decoration:none">{{ item.name }}</a>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">No completed items yet</div>
+        {% endif %}
+    </div>
+
+    <div style="text-align:center; color:var(--text-muted); font-size:0.8rem; padding:1rem 0">
+        Digital FTE — Platinum Tier | Auto-refreshes on page load |
+        <a href="/api/status" style="color:var(--accent)">API: /api/status</a> |
+        <a href="/api/pending" style="color:var(--accent)">API: /api/pending</a> |
+        <a href="/api/activity" style="color:var(--accent)">API: /api/activity</a>
+    </div>
+{% endblock %}

@@ -32,7 +32,7 @@ def client(vault):
 def test_dashboard_returns_200(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "Digital FTE Dashboard" in resp.text
+    assert "AI Employee Dashboard" in resp.text
 
 
 def test_dashboard_shows_idle_when_empty(client):

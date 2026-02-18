@@ -1,0 +1,97 @@
+:root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-hover: #334155;
+    --border: #334155;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent: #3b82f6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --orange: #f97316;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+h2 { font-size: 1.25rem; margin-bottom: 0.75rem; color: var(--text-muted); }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.header-title { display: flex; align-items: center; gap: 0.75rem; }
+.status-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem;
+    padding: 1.25rem; transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--accent); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.folder-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+.folder-item {
+    background: var(--bg); border-radius: 0.5rem; padding: 0.75rem;
+    text-align: center;
+}
+.folder-count { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+.folder-name { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.approval-item {
+    background: var(--bg); border-radius: 0.5rem; padding: 1rem;
+    margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;
+}
+.approval-info { flex: 1; }
+.approval-name { font-weight: 600; font-size: 0.9rem; }
+.approval-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.approval-actions { display: flex; gap: 0.5rem; }
+.btn {
+    padding: 0.375rem 0.75rem; border: none; border-radius: 0.375rem;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-approve { background: var(--green); color: #000; }
+.btn-reject { background: var(--red); color: #fff; }
+.btn-view { background: var(--surface-hover); color: var(--text); }
+.activity-item {
+    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+    font-size: 0.85rem; display: flex; gap: 0.75rem;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-time { color: var(--text-muted); white-space: nowrap; font-family: monospace; font-size: 0.8rem; }
+.activity-action { color: var(--accent); font-weight: 500; }
+.priority-high { color: var(--red); }
+.priority-normal { color: var(--yellow); }
+.priority-low { color: var(--text-muted); }
+.empty-state { color: var(--text-muted); font-style: italic; padding: 1rem 0; text-align: center; }
+.back-link { color: var(--accent); text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+.breadcrumb { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; }
+.file-content {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem;
+    padding: 1.25rem; white-space: pre-wrap; word-wrap: break-word; font-size: 0.85rem;
+    line-height: 1.7; max-height: 70vh; overflow-y: auto;
+}
+.needs-action-item {
+    background: var(--bg); border-radius: 0.5rem; padding: 0.75rem;
+    margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;
+}
+.timestamp { color: var(--text-muted); font-size: 0.75rem; }
+.summary-strip {
+    display: flex; gap: 1rem; justify-content: center;
+    margin-bottom: 2rem; flex-wrap: wrap;
+}
+.summary-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem;
+    padding: 1.25rem 2rem; text-align: center; min-width: 180px;
+    transition: border-color 0.2s;
+}
+.summary-card:hover { border-color: var(--accent); }
+.summary-card h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+.summary-card .summary-count {
+    font-size: 2.25rem; font-weight: 700; color: var(--accent);
+}
