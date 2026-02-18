@@ -35,7 +35,7 @@ def test_full_email_pipeline(tmp_path):
     watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
     count = watcher.run_once()
     assert count == 1
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 1
 
     # Step 2: Orchestrator processes action
@@ -44,8 +44,8 @@ def test_full_email_pipeline(tmp_path):
         mock_claude.return_value = "## Analysis\nProject status update.\n\n## Recommended Actions\n1. Acknowledge receipt\n\n## Requires Approval\n- [ ] Send reply"
         plan_path = orch.process_action(action_files[0])
 
-    assert plan_path.parent.name == "Pending_Approval"
-    assert len(list((tmp_path / "Needs_Action").glob("*.md"))) == 0
+    assert "Pending_Approval" in str(plan_path)
+    assert len(list((tmp_path / "Needs_Action").rglob("*.md"))) == 0
 
     # Step 3: Simulate human approval
     approved_path = tmp_path / "Approved" / plan_path.name
@@ -94,7 +94,7 @@ def test_full_reply_pipeline(tmp_path):
     watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
     count = watcher.run_once()
     assert count == 1
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 1
 
     # Step 2: Orchestrator processes — Claude returns a reply draft
@@ -113,7 +113,7 @@ def test_full_reply_pipeline(tmp_path):
         mock_claude.return_value = claude_reply
         plan_path = orch.process_action(action_files[0])
 
-    assert plan_path.parent.name == "Pending_Approval"
+    assert "Pending_Approval" in str(plan_path)
     plan_content = plan_path.read_text()
     assert "action: reply" in plan_content
     assert "---BEGIN REPLY---" in plan_content
@@ -166,7 +166,7 @@ def test_auto_approve_pipeline(tmp_path):
     watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
     count = watcher.run_once()
     assert count == 1
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 1
 
     # Step 2: Orchestrator processes with high confidence — auto-approves
@@ -190,8 +190,8 @@ def test_auto_approve_pipeline(tmp_path):
 
     # Should go directly to Done/ (no human review needed)
     assert result_path.parent.name == "Done"
-    assert len(list((tmp_path / "Pending_Approval").glob("*.md"))) == 0
-    assert len(list((tmp_path / "Approved").glob("*.md"))) == 0
+    assert len(list((tmp_path / "Pending_Approval").rglob("*.md"))) == 0
+    assert len(list((tmp_path / "Approved").rglob("*.md"))) == 0
     service.users().messages().send.assert_called_once()
 
     # Verify auto_approved log entry exists
@@ -225,7 +225,7 @@ def test_file_extraction_pipeline(tmp_path):
     watcher = FileWatcher(vault_path=tmp_path)
     count = watcher.run_once()
     assert count == 1
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 1
 
     # Verify extraction happened
@@ -246,7 +246,7 @@ def test_file_extraction_pipeline(tmp_path):
         )
         plan_path = orch.process_action(action_files[0])
 
-    assert plan_path.parent.name == "Pending_Approval"
+    assert "Pending_Approval" in str(plan_path)
     plan_content = plan_path.read_text()
     assert "Invoice" in plan_content
 
@@ -283,7 +283,7 @@ def test_rejection_feedback_loop(tmp_path):
     # Step 1: Watcher detects email
     watcher = GmailWatcher(vault_path=tmp_path, gmail_service=service)
     watcher.run_once()
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 1
 
     # Step 2: Orchestrator creates plan with a reply
@@ -302,7 +302,7 @@ def test_rejection_feedback_loop(tmp_path):
         mock_claude.return_value = claude_plan
         plan_path = orch.process_action(action_files[0])
 
-    assert plan_path.parent.name == "Pending_Approval"
+    assert "Pending_Approval" in str(plan_path)
 
     # Step 3: Human rejects the plan (too formal)
     rejected_path = tmp_path / "Rejected" / plan_path.name
@@ -378,7 +378,7 @@ def test_priority_processing_order(tmp_path):
     assert count == 2
 
     # Step 2: Verify priority tags
-    action_files = list((tmp_path / "Needs_Action").glob("*.md"))
+    action_files = list((tmp_path / "Needs_Action").rglob("*.md"))
     assert len(action_files) == 2
 
     high_found = False

@@ -110,3 +110,19 @@ def test_config_web_port_default(monkeypatch):
     from src.config import load_config
     cfg = load_config()
     assert cfg.web_port == 8000
+
+
+def test_config_work_zone_from_env(monkeypatch):
+    """Config should read WORK_ZONE from environment."""
+    monkeypatch.setenv("WORK_ZONE", "cloud")
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.work_zone == "cloud"
+
+
+def test_config_work_zone_default_local(monkeypatch):
+    """Config should default work_zone to 'local'."""
+    monkeypatch.delenv("WORK_ZONE", raising=False)
+    from src.config import load_config
+    cfg = load_config()
+    assert cfg.work_zone == "local"

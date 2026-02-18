@@ -1,47 +1,54 @@
-# Digital FTE — Obsidian Tier
+# Digital FTE — Platinum Tier
 
-> Your life and business on autopilot. Local-first, agent-driven, human-in-the-loop. Now with web dashboard and smart email prioritization.
+> Your life and business on autopilot. Cloud/local split deployment, always-on AI employee with human-in-the-loop.
 
-An autonomous AI agent that monitors your Gmail, drafts replies using Claude, and sends them after human approval — all powered by an Obsidian vault with a real-time web dashboard.
+An autonomous AI agent that monitors your Gmail, drafts replies using Claude, manages social media, and integrates with Odoo accounting — powered by an Obsidian vault with cloud/local split deployment and a real-time web dashboard.
 
 ## Architecture
 
 ```
-Gmail ──► Gmail Watcher ──► classify_priority() ──► vault/Needs_Action/
-                              (keywords / VIP / newsletter)    (tagged: high|normal|low)
-                                       │
-Files ──► File Watcher ──► Extract ──┘
-               (PDF text / image vision)
-                                       │
-                               Orchestrator + Claude ◄── vault/Agent_Memory.md
-                               (processes high-priority first)
-                                       │
-                               confidence >= threshold?
-                                  │           │
-                                 YES          NO
-                                  │           │
-                             Auto-execute   vault/Pending_Approval/
-                                  │           │
-                                  │      Human reviews (Web UI or Obsidian)
-                                  │        │      │
-                                  │  Approved/  Rejected/
-                                  │      │          │
-                                  │  Gmail Reply  Claude reviews
-                                  │      │          │
-                                Done/  Done/   learning → Agent_Memory.md
-                                                    │
-                                              ┌─────┘
-                                              ▼
-                                   Dashboard.md (auto-updated)
-                                   Web Dashboard (localhost:8000)
+┌──────────────── CLOUD ZONE (24/7, draft-only) ──────────────────┐
+│                                                                    │
+│  Gmail ──► Gmail Watcher ──► classify_priority() ──► Needs_Action/ │
+│               (keywords / VIP / newsletter)                        │
+│  Files ──► File Watcher ──► Extract (PDF/image) ──┘               │
+│                                                                    │
+│              Orchestrator + Claude ◄── Agent_Memory.md              │
+│              (creates plans, NEVER executes)                        │
+│                       │                                            │
+│              vault/Pending_Approval/ (drafts only)                  │
+│                       │                                            │
+│              git push ─┤                                           │
+└────────────────────────┼───────────────────────────────────────────┘
+                         │  vault sync (git)
+┌────────────────────────┼───────────────────────────────────────────┐
+│              git pull ─┤                                           │
+│                       ▼                                            │
+│  ┌──── LOCAL ZONE (full execution, human-in-the-loop) ────────┐   │
+│  │                                                              │   │
+│  │  Human reviews (Web UI or Obsidian)                          │   │
+│  │       │          │                                           │   │
+│  │  Approved/    Rejected/                                      │   │
+│  │       │          │                                           │   │
+│  │  Gmail Reply  Claude reviews → learning → Agent_Memory.md    │   │
+│  │  Social Post     │                                           │   │
+│  │  Odoo Invoice    │                                           │   │
+│  │       │          │                                           │   │
+│  │     Done/      Done/                                         │   │
+│  │                                                              │   │
+│  │  Dashboard.md (auto-updated)                                 │   │
+│  │  Web Dashboard (localhost:8000)                               │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-**Five layers:**
+**Six layers:**
 1. **Perception** — Gmail Watcher polls for new emails and classifies priority (high/normal/low); File Watcher extracts content from PDFs and images
-2. **Reasoning** — Claude Code analyzes emails and generates plans
-3. **Action** — High-confidence plans auto-execute; others require approval; rejected plans generate learnings
-4. **Memory** — Obsidian vault stores everything as markdown; Dashboard.md auto-updates
+2. **Reasoning** — Claude Code analyzes emails and generates plans with confidence scores
+3. **Action** — High-confidence plans auto-execute (local only); others require approval; rejected plans generate learnings
+4. **Memory** — Obsidian vault stores everything as markdown; Dashboard.md auto-updates; Agent Memory learns from rejections
 5. **Interface** — Web dashboard at localhost:8000 for real-time monitoring and approval
+6. **Sync** — Git-based vault sync with claim-by-move protocol for cloud/local coordination
 
 ## Prerequisites
 
@@ -241,7 +248,7 @@ Analyzes completed tasks, bottlenecks, activity stats, and generates proactive s
 
 ## Tier Declaration
 
-**Gold Tier** — Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, self-review loops, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, Social Media MCP server with 5 tools, 13 Agent Skills for all AI functionality, social media integration (LinkedIn, Facebook, Twitter) with HITL draft approval, cron/Task Scheduler scheduling support, Ralph Wiggum loop for autonomous multi-step task completion, error recovery with exponential backoff and quarantine queue, Monday Morning CEO Briefing with activity analysis and proactive suggestions, comprehensive architecture documentation, comprehensive audit logging.
+**Platinum Tier** — All Gold tier features plus: cloud/local work-zone specialization (cloud=draft-only, local=full execution), vault sync via git with claim-by-move protocol, In_Progress/<agent>/ claim ownership to prevent double-work, Updates/ directory for cloud-to-local Dashboard.md merging, single-writer rule for Dashboard.md (Local only), secrets isolation (cloud never stores execution credentials), Odoo Community ERP integration via JSON-RPC MCP server, Instagram posting, Dockerfile for 24/7 cloud deployment with health monitoring endpoint (/health), comprehensive Platinum demo gate flow (email arrives → cloud drafts → local approves → send → log → done). **Gold tier features include:** Gmail watcher with reply sending, smart email prioritization (urgency keywords, VIP senders, newsletter detection), file watcher with PDF text extraction and image vision, Claude reasoning loop creating Plan.md files, human-in-the-loop approval workflow, confidence-based auto-approve, web dashboard with real-time monitoring and approval UI, Obsidian vault with approval pipeline, auto-generated Dashboard.md, Email MCP server with 4 tools, Social Media MCP server with 5 tools, Odoo MCP server with 6 tools, 15 Agent Skills, social media integration (LinkedIn, Facebook, Twitter, Instagram) with HITL draft approval, cron/Task Scheduler scheduling, Ralph Wiggum loop for autonomous multi-step task completion, error recovery with exponential backoff and quarantine, Monday Morning CEO Briefing, comprehensive architecture documentation, comprehensive audit logging.
 
 ## License
 

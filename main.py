@@ -9,6 +9,7 @@ from src.config import load_config
 from src.utils import setup_logging
 from src.auth import get_gmail_service
 from src.dashboard import update_dashboard
+from src.vault_sync import merge_updates
 from src.watchers.gmail_watcher import GmailWatcher
 from src.watchers.file_watcher import FileWatcher
 from src.orchestrator import Orchestrator
@@ -93,6 +94,7 @@ def main():
         gmail_service=gmail_service,
         daily_send_limit=cfg.daily_send_limit,
         auto_approve_threshold=cfg.auto_approve_threshold,
+        work_zone=cfg.work_zone,
     )
     if cfg.auto_approve_threshold < 1.0:
         logger.info(f"Auto-approve enabled (threshold: {cfg.auto_approve_threshold})")
@@ -128,6 +130,9 @@ def main():
                 orchestrator.execute_approved(approved_file)
             for rejected_file in orchestrator.get_rejected_actions():
                 orchestrator.review_rejected(rejected_file)
+            # Local zone merges cloud Updates/ into Dashboard.md
+            if cfg.work_zone == "local":
+                merge_updates(cfg.vault_path)
             # Update dashboard after each cycle
             update_dashboard(cfg.vault_path)
             time.sleep(cfg.gmail_check_interval)

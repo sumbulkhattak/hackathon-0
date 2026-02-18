@@ -7,10 +7,14 @@ logger = logging.getLogger("digital_fte.watcher")
 
 
 class BaseWatcher(ABC):
-    def __init__(self, vault_path: Path, check_interval: int = 60):
+    def __init__(self, vault_path: Path, check_interval: int = 60, domain: str = ""):
         self.vault_path = vault_path
         self.check_interval = check_interval
-        self.needs_action_dir = vault_path / "Needs_Action"
+        self.domain = domain
+        if domain:
+            self.needs_action_dir = vault_path / "Needs_Action" / domain
+        else:
+            self.needs_action_dir = vault_path / "Needs_Action"
         self.needs_action_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod

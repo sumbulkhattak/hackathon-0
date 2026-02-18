@@ -14,6 +14,8 @@ OVERVIEW_FOLDERS = [
     "Logs",
     "Incoming_Files",
     "Rejected",
+    "In_Progress",
+    "Updates",
 ]
 
 # Folders whose items count toward "things to process".
@@ -23,10 +25,10 @@ MAX_RECENT_ENTRIES = 10
 
 
 def _count_files(folder: Path) -> int:
-    """Return the number of files (not dirs) in *folder*, 0 if missing."""
+    """Return the number of files (not dirs) in *folder* and subdirs, 0 if missing."""
     if not folder.is_dir():
         return 0
-    return sum(1 for f in folder.iterdir() if f.is_file())
+    return sum(1 for f in folder.rglob("*") if f.is_file())
 
 
 def _items_to_process(vault_path: Path) -> int:

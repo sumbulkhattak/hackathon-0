@@ -68,6 +68,31 @@ class FacebookPoster(SocialPoster):
         return {"success": True, "platform": "facebook", "content": content}
 
 
+class InstagramPoster(SocialPoster):
+    """Post to Instagram using Graph API."""
+
+    platform = "instagram"
+
+    def __init__(self, access_token: str | None = None, ig_user_id: str | None = None):
+        self.access_token = access_token or os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+        self.ig_user_id = ig_user_id or os.getenv("INSTAGRAM_USER_ID", "")
+
+    def validate_credentials(self) -> bool:
+        return bool(self.access_token and self.ig_user_id)
+
+    def post(self, content: str, **kwargs) -> dict:
+        if not self.validate_credentials():
+            return {"success": False, "error": "Instagram credentials not configured"}
+        image_url = kwargs.get("image_url", "")
+        if not image_url:
+            return {"success": False, "error": "Instagram requires an image_url"}
+        # Instagram has 2200 char caption limit
+        if len(content) > 2200:
+            content = content[:2197] + "..."
+        logger.info(f"Instagram post: {content[:100]}...")
+        return {"success": True, "platform": "instagram", "content": content, "image_url": image_url}
+
+
 class TwitterPoster(SocialPoster):
     """Post to Twitter/X using API."""
 
@@ -100,7 +125,7 @@ class TwitterPoster(SocialPoster):
 
 def get_all_posters() -> list[SocialPoster]:
     """Return all configured social media posters."""
-    return [LinkedInPoster(), FacebookPoster(), TwitterPoster()]
+    return [LinkedInPoster(), FacebookPoster(), InstagramPoster(), TwitterPoster()]
 
 
 def create_social_post_draft(
@@ -158,7 +183,7 @@ def generate_social_summary(vault_path: Path, period_days: int = 7) -> str:
     if not logs_dir.is_dir():
         return "No social media activity recorded."
 
-    posts: dict[str, int] = {"linkedin": 0, "facebook": 0, "twitter": 0}
+    posts: dict[str, int] = {"linkedin": 0, "facebook": 0, "instagram": 0, "twitter": 0}
     cutoff = datetime.now(timezone.utc).timestamp() - (period_days * 86400)
 
     for log_file in sorted(logs_dir.glob("*.json")):

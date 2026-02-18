@@ -19,6 +19,7 @@ class Config:
     vip_senders: list[str]
     web_enabled: bool
     web_port: int
+    work_zone: str  # "local" (full execution) or "cloud" (draft-only)
 
 
 def load_config() -> Config:
@@ -37,4 +38,5 @@ def load_config() -> Config:
         vip_senders=[s.strip() for s in os.getenv("VIP_SENDERS", "").split(",") if s.strip()],
         web_enabled=os.getenv("WEB_ENABLED", "true").lower() == "true",
         web_port=int(os.getenv("WEB_PORT", "8000")),
+        work_zone=os.getenv("WORK_ZONE", "local").lower(),
     )

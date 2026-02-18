@@ -15,7 +15,7 @@ PROCESSED_LABEL = "Processed-by-FTE"
 class GmailWatcher(BaseWatcher):
     def __init__(self, vault_path: Path, gmail_service, gmail_filter: str = "is:unread",
                  check_interval: int = 60, vip_senders: list[str] | None = None):
-        super().__init__(vault_path, check_interval)
+        super().__init__(vault_path, check_interval, domain="email")
         self.service = gmail_service
         self.gmail_filter = gmail_filter
         self.vip_senders = vip_senders or []

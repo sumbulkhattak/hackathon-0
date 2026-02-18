@@ -14,6 +14,7 @@ def vault(tmp_path):
     for folder in [
         "Inbox", "Needs_Action", "Plans", "Pending_Approval",
         "Approved", "Done", "Logs", "Incoming_Files", "Rejected",
+        "In_Progress", "Updates",
     ]:
         (tmp_path / folder).mkdir()
     create_app(tmp_path)
@@ -186,3 +187,26 @@ def test_view_file_returns_content(client, vault):
 def test_view_file_not_found(client):
     resp = client.get("/view/Needs_Action/nonexistent.md")
     assert resp.status_code == 404
+
+
+# --- Health endpoint tests (Platinum tier) ---
+
+def test_health_endpoint(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "healthy"
+    assert data["vault_exists"] is True
+    assert "work_zone" in data
+    assert "capabilities" in data
+
+
+def test_api_status_includes_work_zone(client):
+    resp = client.get("/api/status")
+    data = resp.json()
+    assert "work_zone" in data
+
+
+def test_dashboard_shows_platinum_tier(client):
+    resp = client.get("/")
+    assert "Platinum Tier" in resp.text

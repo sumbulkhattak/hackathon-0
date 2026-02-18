@@ -485,3 +485,65 @@ def test_get_pending_actions_handles_missing_priority(tmp_path):
 
     assert len(actions) == 2
     assert actions[0].name == "email-high.md"
+
+
+# --- Work Zone Tests ---
+
+def test_orchestrator_stores_work_zone(vault):
+    """Orchestrator should accept and store work_zone parameter."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, work_zone="cloud")
+    assert orch.work_zone == "cloud"
+
+
+def test_orchestrator_work_zone_default_local(vault):
+    """Orchestrator should default work_zone to 'local'."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault)
+    assert orch.work_zone == "local"
+
+
+def test_cloud_zone_never_auto_approves(vault):
+    """Cloud zone should always route to Pending_Approval, even with high confidence."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(
+        vault_path=vault, auto_approve_threshold=0.5, work_zone="cloud"
+    )
+    action_file = vault / "Needs_Action" / "email-cloud-test.md"
+    action_file.write_text(
+        "---\ntype: email\nfrom: bob@test.com\nsubject: Hi\ngmail_id: msg1\n---\n# Test"
+    )
+    claude_response = (
+        "## Analysis\nSimple.\n\n"
+        "## Reply Draft\n---BEGIN REPLY---\nHi\n---END REPLY---\n\n"
+        "## Confidence\n0.99"
+    )
+    with patch.object(orch, "_invoke_claude") as mock_claude:
+        mock_claude.return_value = claude_response
+        result_path = orch.process_action(action_file)
+    # Cloud zone → always Pending_Approval, never auto-approved
+    assert result_path.parent.name == "Pending_Approval"
+
+
+def test_cloud_zone_blocks_execution(vault):
+    """Cloud zone should block execute_approved and return the file as-is."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, work_zone="cloud")
+    approved_file = vault / "Approved" / "plan-cloud-block.md"
+    approved_file.write_text("---\nstatus: approved\n---\n# Plan\nDo something.")
+    result = orch.execute_approved(approved_file)
+    # File should stay in Approved, not moved to Done
+    assert result == approved_file
+    assert approved_file.exists()
+    assert not (vault / "Done" / "plan-cloud-block.md").exists()
+
+
+def test_local_zone_allows_execution(vault):
+    """Local zone should execute approved actions normally."""
+    from src.orchestrator import Orchestrator
+    orch = Orchestrator(vault_path=vault, work_zone="local")
+    approved_file = vault / "Approved" / "plan-local-exec.md"
+    approved_file.write_text("---\nstatus: approved\n---\n# Plan\nDo something.")
+    result = orch.execute_approved(approved_file)
+    assert result.parent.name == "Done"
+    assert not approved_file.exists()
