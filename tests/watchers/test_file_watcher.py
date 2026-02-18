@@ -81,7 +81,7 @@ def test_creates_action_file(watcher, vault):
     items = watcher.check_for_updates()
     path = watcher.create_action_file(items[0])
     assert path.exists()
-    assert path.parent.name == "Needs_Action"
+    assert "Needs_Action" in str(path)
     assert path.suffix == ".md"
 
 

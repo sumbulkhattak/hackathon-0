@@ -1,7 +1,7 @@
 """One-time Obsidian vault initialization."""
 from pathlib import Path
 
-VAULT_FOLDERS = ["Inbox", "Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs", "Incoming_Files", "Rejected", "Briefings", "Quarantine"]
+VAULT_FOLDERS = ["Inbox", "Needs_Action", "Plans", "Pending_Approval", "Approved", "Done", "Logs", "Incoming_Files", "Rejected", "Briefings", "Quarantine", "In_Progress", "Updates"]
 
 DEFAULT_HANDBOOK = """\
 # Company Handbook
@@ -71,10 +71,18 @@ No recent activity.
 """
 
 
+DOMAIN_FOLDERS = ["Needs_Action", "Plans", "Pending_Approval"]
+DOMAINS = ["email", "file", "social"]
+
+
 def setup_vault(vault_path: Path) -> None:
     vault_path.mkdir(parents=True, exist_ok=True)
     for folder in VAULT_FOLDERS:
         (vault_path / folder).mkdir(exist_ok=True)
+    # Create domain-specific subdirectories (Platinum tier)
+    for folder in DOMAIN_FOLDERS:
+        for domain in DOMAINS:
+            (vault_path / folder / domain).mkdir(parents=True, exist_ok=True)
     handbook = vault_path / "Company_Handbook.md"
     if not handbook.exists():
         handbook.write_text(DEFAULT_HANDBOOK)

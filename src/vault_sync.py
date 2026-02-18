@@ -197,3 +197,81 @@ def claim_item(vault_path: Path, filename: str, from_folder: str, to_folder: str
     source.rename(dest)
     logger.info(f"Claimed {filename}: {from_folder} → {to_folder}")
     return dest
+
+
+def claim_to_in_progress(vault_path: Path, filename: str, agent_name: str) -> Path:
+    """Claim an item from Needs_Action to In_Progress/<agent>/ (Platinum protocol).
+
+    First agent to move an item from Needs_Action to In_Progress/<agent>/ owns it;
+    other agents must ignore it.
+
+    Returns the new path of the claimed file.
+    """
+    source = vault_path / "Needs_Action" / filename
+    if not source.exists():
+        raise VaultSyncError(f"Item not found: {source}")
+
+    # Check if any agent already claimed this file
+    in_progress_dir = vault_path / "In_Progress"
+    if in_progress_dir.is_dir():
+        for agent_dir in in_progress_dir.iterdir():
+            if agent_dir.is_dir() and (agent_dir / filename).exists():
+                raise VaultSyncError(
+                    f"Item already claimed by {agent_dir.name}: {filename}"
+                )
+
+    dest_dir = vault_path / "In_Progress" / agent_name
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / filename
+
+    source.rename(dest)
+    logger.info(f"Agent '{agent_name}' claimed {filename} to In_Progress")
+    return dest
+
+
+def write_update(vault_path: Path, filename: str, content: str) -> Path:
+    """Cloud writes an update to Updates/ for Local to merge into Dashboard.md.
+
+    Cloud zone uses this instead of writing Dashboard.md directly
+    (single-writer rule: only Local writes Dashboard.md).
+    """
+    updates_dir = vault_path / "Updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    dest = updates_dir / filename
+    dest.write_text(content, encoding="utf-8")
+    logger.info(f"Cloud wrote update: {filename}")
+    return dest
+
+
+def merge_updates(vault_path: Path) -> int:
+    """Local merges pending Updates/ into Dashboard.md and removes processed updates.
+
+    Returns the number of updates merged.
+    """
+    updates_dir = vault_path / "Updates"
+    if not updates_dir.is_dir():
+        return 0
+
+    update_files = sorted(updates_dir.glob("*.md"))
+    if not update_files:
+        return 0
+
+    dashboard_path = vault_path / "Dashboard.md"
+    dashboard_content = ""
+    if dashboard_path.exists():
+        dashboard_content = dashboard_path.read_text(encoding="utf-8")
+
+    merged = 0
+    for update_file in update_files:
+        update_content = update_file.read_text(encoding="utf-8")
+        # Append update as a new section
+        dashboard_content += f"\n\n## Update: {update_file.stem}\n{update_content}"
+        update_file.unlink()
+        merged += 1
+        logger.info(f"Merged update into Dashboard.md: {update_file.name}")
+
+    if merged > 0:
+        dashboard_path.write_text(dashboard_content, encoding="utf-8")
+        logger.info(f"Merged {merged} update(s) into Dashboard.md")
+
+    return merged

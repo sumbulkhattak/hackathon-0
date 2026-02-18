@@ -1,5 +1,6 @@
 """FastAPI web dashboard for Digital FTE — makes the system visible and demonstrable."""
 import json
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from src.dashboard import (
     _recent_activity,
 )
 from src.utils import log_action, parse_frontmatter
+from src.secrets_isolation import get_zone_capabilities
 
 app = FastAPI(title="Digital FTE Dashboard", version="1.0.0")
 
@@ -50,16 +52,20 @@ async def dashboard_page(request: Request):
         count = _count_files(vault / folder)
         folder_counts.append({"name": folder, "count": count})
 
-    # Pending approvals with metadata
+    # Pending approvals with metadata (scan recursively for domain subdirs)
     approvals = []
     pa_dir = vault / "Pending_Approval"
     if pa_dir.is_dir():
-        for f in sorted(pa_dir.iterdir()):
-            if f.is_file() and f.suffix == ".md":
+        for f in sorted(pa_dir.rglob("*.md")):
+            if f.is_file():
                 fm = parse_frontmatter(f)
+                # Build relative path for approve/reject routes
+                rel = f.relative_to(pa_dir)
                 approvals.append({
                     "name": f.name,
+                    "rel_path": str(rel).replace("\\", "/"),
                     "stem": f.stem,
+                    "domain": f.parent.name if f.parent != pa_dir else "",
                     "created": fm.get("created", "unknown"),
                     "confidence": fm.get("confidence", "N/A"),
                     "action": fm.get("action", "review"),
@@ -70,15 +76,16 @@ async def dashboard_page(request: Request):
     activity = _recent_activity(vault)
     activity.reverse()  # Most recent first
 
-    # Needs_Action items
+    # Needs_Action items (scan recursively for domain subdirs)
     needs_action = []
     na_dir = vault / "Needs_Action"
     if na_dir.is_dir():
-        for f in sorted(na_dir.iterdir()):
-            if f.is_file() and f.suffix == ".md":
+        for f in sorted(na_dir.rglob("*.md")):
+            if f.is_file():
                 fm = parse_frontmatter(f)
                 needs_action.append({
                     "name": f.name,
+                    "domain": f.parent.name if f.parent != na_dir else "",
                     "priority": fm.get("priority", "normal"),
                     "type": fm.get("type", "unknown"),
                     "subject": fm.get("subject", f.stem),
@@ -106,16 +113,32 @@ async def dashboard_page(request: Request):
     return HTMLResponse(content=html)
 
 
+@app.get("/health")
+async def health_check():
+    """Health endpoint for cloud monitoring and load balancers."""
+    vault = _get_vault()
+    work_zone = os.getenv("WORK_ZONE", "local")
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "vault_exists": vault.is_dir(),
+        "work_zone": work_zone,
+        "capabilities": get_zone_capabilities(work_zone),
+    }
+
+
 @app.get("/api/status")
 async def api_status():
     """JSON API — vault status overview."""
     vault = _get_vault()
     counts = {f: _count_files(vault / f) for f in OVERVIEW_FOLDERS}
     total_active = _items_to_process(vault)
+    work_zone = os.getenv("WORK_ZONE", "local")
     return {
         "status": "active" if total_active > 0 else "idle",
         "items_to_process": total_active,
         "folders": counts,
+        "work_zone": work_zone,
     }
 
 
@@ -135,39 +158,41 @@ async def api_activity():
     return {"activity": entries}
 
 
-@app.post("/approve/{filename}")
-async def approve_action(filename: str):
-    """Move a file from Pending_Approval to Approved."""
+@app.post("/approve/{filepath:path}")
+async def approve_action(filepath: str):
+    """Move a file from Pending_Approval to Approved (supports domain subdirs)."""
     vault = _get_vault()
-    src = vault / "Pending_Approval" / filename
+    src = vault / "Pending_Approval" / filepath
     if not src.exists():
-        return {"error": f"File not found: {filename}"}
-    dest = vault / "Approved" / filename
+        return {"error": f"File not found: {filepath}"}
+    dest = vault / "Approved" / filepath
+    dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(src), str(dest))
     log_action(
         logs_dir=vault / "Logs",
         actor="web_dashboard",
         action="approved",
-        source=filename,
+        source=filepath,
         result="moved_to_approved",
     )
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.post("/reject/{filename}")
-async def reject_action(filename: str):
-    """Move a file from Pending_Approval to Rejected."""
+@app.post("/reject/{filepath:path}")
+async def reject_action(filepath: str):
+    """Move a file from Pending_Approval to Rejected (supports domain subdirs)."""
     vault = _get_vault()
-    src = vault / "Pending_Approval" / filename
+    src = vault / "Pending_Approval" / filepath
     if not src.exists():
-        return {"error": f"File not found: {filename}"}
-    dest = vault / "Rejected" / filename
+        return {"error": f"File not found: {filepath}"}
+    dest = vault / "Rejected" / filepath
+    dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(src), str(dest))
     log_action(
         logs_dir=vault / "Logs",
         actor="web_dashboard",
         action="rejected",
-        source=filename,
+        source=filepath,
         result="moved_to_rejected",
     )
     return RedirectResponse(url="/", status_code=303)
@@ -315,20 +340,22 @@ def _render_dashboard(
     if approvals:
         approvals_html = ""
         for a in approvals:
+            domain_badge = f' <span style="color:var(--accent);font-size:0.7rem">[{a["domain"]}]</span>' if a.get("domain") else ""
+            rel = a.get("rel_path", a["name"])
             approvals_html += f"""
             <div class="approval-item">
                 <div class="approval-info">
-                    <div class="approval-name">{a['name']}</div>
+                    <div class="approval-name">{a['name']}{domain_badge}</div>
                     <div class="approval-meta">
                         Source: {a['source']} | Confidence: {a['confidence']} | Action: {a['action']}
                     </div>
                 </div>
                 <div class="approval-actions">
-                    <a href="/view/Pending_Approval/{a['name']}" class="btn btn-view">View</a>
-                    <form method="post" action="/approve/{a['name']}" style="display:inline">
+                    <a href="/view/Pending_Approval/{rel}" class="btn btn-view">View</a>
+                    <form method="post" action="/approve/{rel}" style="display:inline">
                         <button class="btn btn-approve" type="submit">Approve</button>
                     </form>
-                    <form method="post" action="/reject/{a['name']}" style="display:inline">
+                    <form method="post" action="/reject/{rel}" style="display:inline">
                         <button class="btn btn-reject" type="submit">Reject</button>
                     </form>
                 </div>
@@ -341,13 +368,14 @@ def _render_dashboard(
         na_html = ""
         for item in needs_action:
             priority_class = f"priority-{item['priority']}"
+            domain_tag = f" [{item['domain']}]" if item.get("domain") else ""
             na_html += f"""
             <div class="needs-action-item">
                 <div>
                     <span class="{priority_class}" style="font-weight:700">●</span>
                     <a href="/view/Needs_Action/{item['name']}" style="color:var(--text);text-decoration:none">{item['subject']}</a>
                 </div>
-                <span class="timestamp">{item['type']} | {item['priority']}</span>
+                <span class="timestamp">{item['type']}{domain_tag} | {item['priority']}</span>
             </div>"""
     else:
         na_html = '<div class="empty-state">No action items</div>'
@@ -434,7 +462,7 @@ def _render_dashboard(
     </div>
 
     <div style="text-align:center; color:var(--text-muted); font-size:0.8rem; padding:1rem 0">
-        Digital FTE — Obsidian Tier | Auto-refreshes on page load |
+        Digital FTE — Platinum Tier | Auto-refreshes on page load |
         <a href="/api/status" style="color:var(--accent)">API: /api/status</a> |
         <a href="/api/pending" style="color:var(--accent)">API: /api/pending</a> |
         <a href="/api/activity" style="color:var(--accent)">API: /api/activity</a>

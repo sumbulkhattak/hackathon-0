@@ -173,3 +173,73 @@ def test_vault_sync_error_is_exception():
     from src.vault_sync import VaultSyncError
     with pytest.raises(VaultSyncError):
         raise VaultSyncError("test error")
+
+
+# --- Platinum tier: In_Progress claim-by-move ---
+
+
+def test_claim_to_in_progress(vault):
+    """claim_to_in_progress should move a file from Needs_Action to In_Progress/<agent>/."""
+    from src.vault_sync import claim_to_in_progress
+    (vault / "Needs_Action" / "email-task.md").write_text("# Task")
+    result = claim_to_in_progress(vault, "email-task.md", "cloud_agent")
+    assert result == vault / "In_Progress" / "cloud_agent" / "email-task.md"
+    assert result.exists()
+    assert not (vault / "Needs_Action" / "email-task.md").exists()
+
+
+def test_claim_to_in_progress_already_claimed(vault):
+    """claim_to_in_progress should reject if another agent already claimed the file."""
+    from src.vault_sync import claim_to_in_progress, VaultSyncError
+    (vault / "Needs_Action" / "email-dup.md").write_text("# Task")
+    # First agent claims it
+    (vault / "In_Progress" / "other_agent").mkdir(parents=True)
+    (vault / "In_Progress" / "other_agent" / "email-dup.md").write_text("# Claimed")
+    with pytest.raises(VaultSyncError, match="already claimed"):
+        claim_to_in_progress(vault, "email-dup.md", "cloud_agent")
+
+
+def test_claim_to_in_progress_missing_source(vault):
+    """claim_to_in_progress should raise if source file doesn't exist."""
+    from src.vault_sync import claim_to_in_progress, VaultSyncError
+    with pytest.raises(VaultSyncError, match="not found"):
+        claim_to_in_progress(vault, "nonexistent.md", "cloud_agent")
+
+
+# --- Platinum tier: Updates (cloud writes, local merges) ---
+
+
+def test_write_update(vault):
+    """write_update should create a file in Updates/."""
+    from src.vault_sync import write_update
+    result = write_update(vault, "status-2026-02-18.md", "Cloud processed 5 emails")
+    assert result == vault / "Updates" / "status-2026-02-18.md"
+    assert result.exists()
+    assert result.read_text(encoding="utf-8") == "Cloud processed 5 emails"
+
+
+def test_merge_updates(vault):
+    """merge_updates should merge Updates/ files into Dashboard.md and remove them."""
+    from src.vault_sync import merge_updates
+    (vault / "Updates").mkdir(exist_ok=True)
+    (vault / "Updates" / "update-1.md").write_text("Five emails triaged")
+    (vault / "Updates" / "update-2.md").write_text("Two drafts created")
+    (vault / "Dashboard.md").write_text("# Dashboard\nExisting content")
+
+    count = merge_updates(vault)
+    assert count == 2
+    # Updates removed
+    assert not (vault / "Updates" / "update-1.md").exists()
+    assert not (vault / "Updates" / "update-2.md").exists()
+    # Dashboard updated
+    dashboard = (vault / "Dashboard.md").read_text(encoding="utf-8")
+    assert "Five emails triaged" in dashboard
+    assert "Two drafts created" in dashboard
+    assert "Existing content" in dashboard
+
+
+def test_merge_updates_no_updates(vault):
+    """merge_updates should return 0 when no updates exist."""
+    from src.vault_sync import merge_updates
+    count = merge_updates(vault)
+    assert count == 0

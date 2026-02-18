@@ -7,6 +7,7 @@ from pathlib import Path
 
 from src.gmail_sender import send_reply, check_send_limit, increment_send_count
 from src.utils import log_action, parse_frontmatter, extract_reply_block, extract_confidence
+from src.vault_sync import write_update
 
 logger = logging.getLogger("digital_fte.orchestrator")
 
@@ -33,7 +34,8 @@ class Orchestrator:
 
     def get_pending_actions(self) -> list[Path]:
         priority_order = {"high": 0, "normal": 1, "low": 2}
-        files = list(self.needs_action.glob("*.md"))
+        # Scan recursively — picks up both flat files and domain subdirs
+        files = list(self.needs_action.rglob("*.md"))
 
         def _priority_key(path: Path) -> int:
             fm = parse_frontmatter(path)
@@ -42,10 +44,30 @@ class Orchestrator:
         return sorted(files, key=_priority_key)
 
     def get_approved_actions(self) -> list[Path]:
-        return sorted(self.approved.glob("*.md"))
+        return sorted(self.approved.rglob("*.md"))
 
     def get_rejected_actions(self) -> list[Path]:
-        return sorted(self.rejected.glob("*.md"))
+        return sorted(self.rejected.rglob("*.md"))
+
+    def _get_domain(self, action_file: Path) -> str:
+        """Derive domain from the action file's parent directory.
+
+        If the file is in Needs_Action/email/foo.md, domain is "email".
+        If the file is in Needs_Action/foo.md (flat), domain is "".
+        """
+        parent = action_file.parent
+        # Check if parent is a domain subdir (not the top-level folder itself)
+        if parent.parent.name in ("Needs_Action", "Plans", "Pending_Approval", "Approved", "Rejected"):
+            return parent.name
+        return ""
+
+    def _domain_dir(self, base: Path, domain: str) -> Path:
+        """Return base/domain/ if domain is set, otherwise base/."""
+        if domain:
+            d = base / domain
+            d.mkdir(parents=True, exist_ok=True)
+            return d
+        return base
 
     def process_action(self, action_file: Path) -> Path:
         logger.info(f"Processing: {action_file.name}")
@@ -53,6 +75,9 @@ class Orchestrator:
         handbook = ""
         if self.handbook_path.exists():
             handbook = self.handbook_path.read_text(encoding="utf-8")
+
+        # Derive domain from action file location
+        domain = self._get_domain(action_file)
 
         # Extract email metadata for reply context
         metadata = parse_frontmatter(action_file)
@@ -62,7 +87,7 @@ class Orchestrator:
         confidence = extract_confidence(claude_response)
 
         now = datetime.now(timezone.utc).isoformat()
-        plan_name = action_file.name.replace("email-", "plan-")
+        plan_name = action_file.name.replace("email-", "plan-").replace("file-", "plan-")
 
         # Build frontmatter — include reply fields if Claude generated a reply
         fm_lines = [
@@ -102,8 +127,9 @@ class Orchestrator:
                 can_auto_approve = False
 
         if can_auto_approve:
-            # Auto-approve: write to Approved/, execute, move to Done/
-            approved_path = self.approved / plan_name
+            # Auto-approve: write to Approved/<domain>/, execute, move to Done/
+            approved_dir = self._domain_dir(self.approved, domain)
+            approved_path = approved_dir / plan_name
             approved_path.write_text(plan_content, encoding="utf-8")
             action_file.unlink()
             log_action(
@@ -116,9 +142,10 @@ class Orchestrator:
             logger.info(f"Auto-approved (confidence={confidence}): {plan_name}")
             result = self.execute_approved(approved_path)
             # If execute_approved returned a file still in Approved/, send failed
-            if result.parent == self.approved:
+            if result.parent.name == "Approved" or (result.parent.parent.is_dir() and result.parent.parent.name == "Approved"):
                 # Move to Pending_Approval for human review
-                fallback_path = self.pending_approval / plan_name
+                pending_dir = self._domain_dir(self.pending_approval, domain)
+                fallback_path = pending_dir / plan_name
                 shutil.move(str(result), str(fallback_path))
                 log_action(
                     logs_dir=self.logs,
@@ -131,8 +158,9 @@ class Orchestrator:
                 return fallback_path
             return result
         else:
-            # Normal flow: write to Pending_Approval/
-            plan_path = self.pending_approval / plan_name
+            # Normal flow: write to Pending_Approval/<domain>/
+            pending_dir = self._domain_dir(self.pending_approval, domain)
+            plan_path = pending_dir / plan_name
             plan_path.write_text(plan_content, encoding="utf-8")
             action_file.unlink()
             log_action(
@@ -142,6 +170,14 @@ class Orchestrator:
                 source=action_file.name,
                 result=f"pending_approval:{plan_name}",
             )
+            # Cloud zone writes update signal for Local to merge into Dashboard.md
+            if self.work_zone == "cloud":
+                now = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                write_update(
+                    self.vault_path,
+                    f"cloud-draft-{now}.md",
+                    f"Cloud drafted plan: {plan_name} (confidence: {confidence})",
+                )
             logger.info(f"Plan created: {plan_path.name} (awaiting approval)")
             return plan_path
 
