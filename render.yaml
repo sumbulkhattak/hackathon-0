@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: digital-fte-dashboard
+    runtime: docker
+    repo: https://github.com/sumbulkhattak/hackathon-0
+    branch: master
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: WORK_ZONE
+        value: cloud
+      - key: WEB_ENABLED
+        value: "true"
+      - key: WEB_PORT
+        value: "8000"
+      - key: AUTO_APPROVE_THRESHOLD
+        value: "1.0"
+      - key: VAULT_PATH
+        value: ./vault
+    healthCheckPath: /health

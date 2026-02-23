@@ -37,6 +37,6 @@ def load_config() -> Config:
         auto_approve_threshold=float(os.getenv("AUTO_APPROVE_THRESHOLD", "1.0")),
         vip_senders=[s.strip() for s in os.getenv("VIP_SENDERS", "").split(",") if s.strip()],
         web_enabled=os.getenv("WEB_ENABLED", "true").lower() == "true",
-        web_port=int(os.getenv("WEB_PORT", "8000")),
+        web_port=int(os.getenv("PORT", os.getenv("WEB_PORT", "8000"))),
         work_zone=os.getenv("WORK_ZONE", "local").lower(),
     )
